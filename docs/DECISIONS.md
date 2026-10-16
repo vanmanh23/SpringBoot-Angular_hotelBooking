@@ -52,6 +52,23 @@ Source of truth order: confirmed business requirements & security rules → runn
 - **Decision:** Install with `npx -y npm@11 install` / `npx -y npm@11 ci`. The frontend Dockerfile does the same. The global npm was not changed.
 - **Impact:** npm 11 does not run the install scripts of `esbuild`, `lmdb`, `msgpackr-extract` and `@parcel/watcher`. Build and tests pass without them; revisit if a native-binary problem appears.
 
+### D-009 — Token storage and session model (was P-07; owner approved the default on 2026-10-16)
+- **Decision:** The access token is an RS256 JWT with a 15-minute lifetime, held only in SPA memory. The refresh token is opaque, has a 7-day lifetime and lives in an HttpOnly, Secure, SameSite=Strict cookie on path `/api/v1/auth`. Refresh tokens are stored server-side as SHA-256 hashes, rotate on every use and are grouped in families. Reusing a rotated token revokes the whole family.
+- **Refinement:** A refresh within 30 s of a rotation returns `401 REFRESH_TOKEN_STALE` without revoking anything; the SPA retries once. Without this, two tabs (or a reload during a refresh) would look like token theft and log the user out everywhere.
+- **Trade-off:** JWTs are stateless, so after an admin lock or a password change an already-issued access token stays valid for at most 15 minutes. Refresh tokens are revoked immediately.
+
+### D-010 — Every service validates the JWT; the gateway does not
+- **Decision:** Each business service is an OAuth2 resource server. It validates the signature against JWKS from `auth-service:8081/oauth2/jwks` (internal network only), plus `iss`, `aud`, `exp`; roles come from the `roles` claim. The gateway only routes and applies CORS.
+- **Rationale:** Defense in depth (design §5.7): a service reached without the gateway is still protected, and services never trust identity headers. The identity used for ownership checks is always the token `sub` (`CurrentUser.from(jwt)`), never a request field.
+- **Impact:** Unauthenticated requests to any non-public path get `401` from the service itself; default is deny.
+
+### D-011 — Brute-force protection by account, with generic errors
+- **Decision:** After 5 consecutive wrong passwords, the account is locked out for 15 minutes. During the lockout even a correct password returns the generic `401 INVALID_CREDENTIALS`. Unknown emails go through a dummy BCrypt comparison so that timing does not reveal which accounts exist. `403 ACCOUNT_LOCKED` (admin lock) is returned only after a correct password.
+- **Known limitation:** Anyone who knows an email can deliberately trigger the 15-minute lockout (nuisance-level DoS). Per-IP rate limiting at the edge is planned for M7.
+
+### D-012 — Admin safety rules
+- **Decision:** Admins cannot change their own status or roles (`409 CANNOT_MODIFY_SELF`), which also guarantees the last admin can never be demoted. Every status or role change writes an `audit_logs` row (BR-32). The first admin comes only from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at start-up; there is no default credential.
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)
@@ -64,6 +81,5 @@ Source of truth order: confirmed business requirements & security rules → runn
 | P-04 | Cancellation and refund policy | Free cancel until 48 h before check-in (local hotel time); after that, no refund. A refund is a separate record (`REFUND_PENDING` → `REFUNDED`). | M3/M4 |
 | P-05 | Payment gateway | No merchant account is available, so build a **sandbox provider** inside payment-service with HMAC-SHA256 signed webhooks (same shape as VNPay/Stripe). A real gateway needs credentials from the owner. | M4 |
 | P-06 | Late payment (succeeds after the booking EXPIRED) | Never auto-confirm: if inventory is still free, re-reserve and confirm; otherwise refund automatically and flag it for review | M4 |
-| P-07 | Token storage in the browser | Access JWT in memory; refresh token in an HttpOnly, Secure, SameSite=Strict cookie scoped to `/api/v1/auth`, rotated on each use and stored hashed server-side | M1 |
 | P-08 | How a Hotel Manager is linked to hotels | `hotel_managers(hotel_id, user_id)` in hotel_db, assigned by an Admin | M2/M5 |
 | P-09 | Business time zone | Stay dates are hotel-local `DATE`s; timestamps are UTC `TIMESTAMPTZ`; each hotel stores an IANA zone (default `Asia/Ho_Chi_Minh`) | M2/M3 |

@@ -68,3 +68,15 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | R4 | npm 11 skips install scripts (esbuild etc.) | build and tests pass; watch for native-binary issues |
 | R5 | Dockerfiles build each service with Maven inside Docker (slow on a cold cache) | BuildKit cache mount for `~/.m2`; acceptable for now |
 | R6 | No payment-gateway credentials | sandbox provider with HMAC webhooks (P-05) |
+
+## 6. M1 verification (2026-10-16)
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend | `cd backend && mvn -B clean verify` | **PASS**: BUILD SUCCESS, 2:40 min, 71 tests (common 4, gateway 17, auth 30, other 5 services 4 each) |
+| Frontend build | `npx ng build` | **PASS**: initial 262 kB raw / 73 kB transfer; auth pages lazy-loaded |
+| Frontend tests | `npx ng test --watch=false` | **PASS**: 25/25 (interceptor, auth service, guards, login page, app) |
+| Stack | `docker compose up -d --build --wait` | **PASS**: 10/10 healthy; auth_db Flyway V1 and V2 applied |
+| E2E | `python -I m1_e2e.py` through `:4200` | **PASS**: 22/22 checks (register, role escalation ignored, duplicate, generic login error, hardened cookie, cross-service JWKS validation for 5 services, 403 admin for customer, rotation, stale reuse, logout, bootstrap admin, lock → 403, JWKS not public) |
+| Secrets in logs | grep compose logs for the test password, `eyJ…` JWTs, `SH_REFRESH=` values and the admin password | **PASS**: 0 matches |
+| Frontend lint | — | **N/A**: no linter yet (M6) |
+

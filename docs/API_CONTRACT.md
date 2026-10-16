@@ -12,7 +12,8 @@ Base URL (browser): relative `/api/v1` (same origin; proxied to the gateway). Ga
 | Error body | see below (D-005) | `common-lib/.../ApiError.java`, `GlobalExceptionHandlerTest` |
 | Pagination (planned) | `?page=0&size=20&sort=field,asc` → `{content, page, size, totalElements, totalPages}` | design §6.8.3, to implement in M2 |
 | Idempotency (planned) | `Idempotency-Key` request header on POST that creates bookings/payments | header already allowed by gateway CORS |
-| Correlation (planned) | `X-Correlation-Id` request/response header | allowed/exposed by gateway CORS |
+| Correlation | `X-Correlation-Id`: the gateway keeps a valid client value (`[A-Za-z0-9-]{8,64}`) or generates a UUID, forwards it and returns it; services put it in the log MDC | `CorrelationIdFilter` (gateway and common-lib), `GatewayRoutingTest` |
+| Authentication | `Authorization: Bearer <JWT>` validated by **each** service (D-010). Missing, invalid, expired, foreign-signed or wrong-audience token → `401 UNAUTHORIZED`; wrong role → `403 FORBIDDEN` | `*ServiceSmokeTest`, `AuthFlowIntegrationTest` |
 
 ### Error body
 ```json
@@ -33,7 +34,7 @@ Evidence: `GatewayRoutingTest` (13 cases PASS); runtime curl smoke recorded in `
 | Path pattern | Service (internal port) |
 |--------------|-------------------------|
 | `/api/v1/hotels/{id}/reviews[/**]` | review-service (8085), matched before the hotel route |
-| `/api/v1/auth/**`, `/api/v1/users/**` | auth-service (8081) |
+| `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/admin/users[/**]` | auth-service (8081) |
 | `/api/v1/hotels[/**]`, `/api/v1/room-types/**`, `/api/v1/amenities[/**]` | hotel-service (8082) |
 | `/api/v1/bookings[/**]` | booking-service (8083) |
 | `/api/v1/payments[/**]` | payment-service (8084) |
@@ -48,9 +49,10 @@ CORS: allow-list from `CORS_ALLOWED_ORIGINS`; methods GET, POST, PUT, PATCH, DEL
 |--------|------|------|----------|----------|
 | GET | `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness` (each service, **not** routed through the gateway) | none | `{"status":"UP"}` (details hidden) | `*ServiceSmokeTest`, Docker healthchecks |
 
-No business endpoints exist yet (M0 scope).
+Auth and user endpoints: see the M1 section below.
 
-## M1 — Auth & users (contract agreed before implementation)
+## M1 — Auth & users — **Implemented & verified**
+Evidence: `AuthFlowIntegrationTest` (24 cases), `AuthServiceSmokeTest`, `*ServiceSmokeTest` (401 without a token or with an invalid one), `GatewayRoutingTest` (admin route), and the stack E2E script (22/22 PASS, see `PROJECT_AUDIT.md` §6).
 
 Tokens (P-07 decided):
 - **Access token:** JWT signed with RS256, 15-minute lifetime, kept in memory by the SPA and sent as `Authorization: Bearer`. Claims: `iss=https://auth.stayhotel.local`, `aud=stay-hotel-api`, `sub=<userId>`, `email`, `roles` (for example `["CUSTOMER"]`), `iat`, `exp`, `jti`.
@@ -81,11 +83,6 @@ Password hashing: BCrypt (strength 12). A dummy hash comparison runs for unknown
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|
-| Auth | POST | `/api/v1/auth/register` | none | M1 |
-| Auth | POST | `/api/v1/auth/login` | none | M1 |
-| Auth | POST | `/api/v1/auth/refresh` | refresh cookie | M1 |
-| Auth | POST | `/api/v1/auth/logout` | refresh cookie | M1 |
-| Users | GET/PUT | `/api/v1/users/me` | bearer | M1 |
 | Hotels | GET | `/api/v1/hotels` (search, paginated) | none | M2 |
 | Hotels | GET | `/api/v1/hotels/{hotelId}` | none | M2 |
 | Hotels | GET | `/api/v1/hotels/{hotelId}/room-types` | none | M2 |
@@ -104,5 +101,6 @@ Password hashing: BCrypt (strength 12). A dummy hash comparison runs for unknown
 
 ### Differences from the design
 - `/api/v1` prefix added (D-003).
-- Refresh token travels in an HttpOnly cookie instead of the body (P-07, pending confirmation in M1).
+- Refresh token travels in an HttpOnly cookie instead of the body (D-009).
+- Password change (`PUT /users/me/password`) and admin user management (`/admin/users`) are additions not listed in design §6.7.1 (they cover FR-AUTH-05 and FR-ADMIN-01).
 - Webhook path fixed as `/api/v1/payments/webhooks/{provider}` (design: "path configured by backend").

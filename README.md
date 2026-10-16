@@ -2,7 +2,7 @@
 
 Microservices hotel booking platform: Java 17 / Spring Boot 3.5, Spring Cloud Gateway, PostgreSQL 17, Kafka, Angular 21, Docker Compose.
 
-> **Status:** Milestone M0 (foundation) is complete. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
+> **Status:** Milestones M0 (foundation) and M1 (authentication & authorization) are complete. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
 
 ## Architecture
 ```
@@ -31,6 +31,8 @@ JDK 17, Maven 3.9+, Node 22, Docker Desktop (also needed for Testcontainers test
 ## Run everything with Docker
 ```bash
 cp .env.example .env        # then replace every change-me value
+echo "AUTH_JWT_PRIVATE_KEY=$(scripts/generate-jwt-key.sh)" >> .env   # or paste it over the placeholder
+# optional first admin: set ADMIN_EMAIL / ADMIN_PASSWORD (12+ chars, letters and digits) in .env
 docker compose up -d --build --wait
 # Frontend: http://localhost:4200   Gateway: http://localhost:8080
 docker compose down          # keeps data volumes
@@ -41,9 +43,9 @@ docker compose down          # keeps data volumes
 # Infrastructure only
 docker compose up -d postgres kafka
 
-# A service (credentials from .env)
+# A service (credentials from .env). AUTH_JWT_ALLOW_EPHEMERAL_KEY=true is for local dev only.
 cd backend
-DB_USERNAME=auth_user DB_PASSWORD=<AUTH_DB_PASSWORD> mvn -pl auth-service -am spring-boot:run
+DB_USERNAME=auth_user DB_PASSWORD=<AUTH_DB_PASSWORD> AUTH_JWT_ALLOW_EPHEMERAL_KEY=true   mvn -pl auth-service -am spring-boot:run
 
 # Frontend (proxies /api to localhost:8080)
 cd frontend
