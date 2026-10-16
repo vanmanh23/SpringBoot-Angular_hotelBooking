@@ -43,6 +43,13 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.stayhotel</groupId>
+                <artifactId>common-lib</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>

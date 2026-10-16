@@ -65,6 +65,8 @@ class GatewayRoutingTest {
     @CsvSource({
             "/api/v1/auth/login, auth",
             "/api/v1/users/me, auth",
+            "/api/v1/admin/users, auth",
+            "/api/v1/admin/users/123/status, auth",
             "/api/v1/hotels, hotel",
             "/api/v1/hotels/123, hotel",
             "/api/v1/hotels/123/room-types, hotel",
@@ -78,6 +80,24 @@ class GatewayRoutingTest {
         client.get().uri(path).exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class).isEqualTo(expectedService + " " + path);
+    }
+
+    @Test
+    void correlationIdIsGeneratedAndForwarded() {
+        String id = client.get().uri("/api/v1/hotels").exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueMatches("X-Correlation-Id", "[0-9a-f-]{36}")
+                .returnResult(String.class).getResponseHeaders().getFirst("X-Correlation-Id");
+        // The stub echoes what it received; the downstream value must equal the one returned to the client.
+        client.get().uri("/api/v1/hotels").header("X-Correlation-Id", id).exchange()
+                .expectHeader().valueEquals("X-Seen-Correlation-Id", id)
+                .expectHeader().valueEquals("X-Correlation-Id", id);
+    }
+
+    @Test
+    void malformedCorrelationIdIsReplaced() {
+        client.get().uri("/api/v1/hotels").header("X-Correlation-Id", "bad value<script>").exchange()
+                .expectHeader().valueMatches("X-Seen-Correlation-Id", "[0-9a-f-]{36}");
     }
 
     @Test
@@ -109,6 +129,10 @@ class GatewayRoutingTest {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             server.createContext("/", exchange -> {
                 byte[] body = (name + " " + exchange.getRequestURI().getPath()).getBytes(StandardCharsets.UTF_8);
+                String seen = exchange.getRequestHeaders().getFirst("X-Correlation-Id");
+                if (seen != null) {
+                    exchange.getResponseHeaders().add("X-Seen-Correlation-Id", seen);
+                }
                 exchange.sendResponseHeaders(200, body.length);
                 try (OutputStream os = exchange.getResponseBody()) {
                     os.write(body);

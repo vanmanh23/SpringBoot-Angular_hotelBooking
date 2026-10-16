@@ -1,0 +1,7 @@
+# Merged on top of the main application.yml for tests only.
+auth:
+  jwt:
+    allow-ephemeral-key: true
+  bootstrap-admin:
+    email: admin@stayhotel.test
+    password: Admin-Passw0rd-123

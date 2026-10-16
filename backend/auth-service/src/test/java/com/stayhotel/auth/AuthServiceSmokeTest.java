@@ -18,16 +18,22 @@ class AuthServiceSmokeTest {
     TestRestTemplate http;
 
     @Test
-    void healthIsUpWithDatabaseAndMigrations() {
+    void healthIsPublicAndUp() {
         ResponseEntity<String> res = http.getForEntity("/actuator/health", String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody()).contains("\"status\":\"UP\"");
     }
 
     @Test
-    void unknownPathReturnsUniformErrorBody() {
+    void unknownPathRequiresAuthenticationWithUniformBody() {
         ResponseEntity<String> res = http.getForEntity("/api/v1/does-not-exist", String.class);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(res.getBody()).contains("\"code\":\"NOT_FOUND\"").doesNotContain("trace");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(res.getBody()).contains("\"code\":\"UNAUTHORIZED\"").doesNotContain("trace");
+    }
+
+    @Test
+    void sensitiveActuatorEndpointsAreNotExposed() {
+        assertThat(http.getForEntity("/actuator/env", String.class).getStatusCode())
+                .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.NOT_FOUND);
     }
 }

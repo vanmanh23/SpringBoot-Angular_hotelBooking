@@ -50,6 +50,34 @@ CORS: allow-list from `CORS_ALLOWED_ORIGINS`; methods GET, POST, PUT, PATCH, DEL
 
 No business endpoints exist yet (M0 scope).
 
+## M1 — Auth & users (contract agreed before implementation)
+
+Tokens (P-07 decided):
+- **Access token:** JWT signed with RS256, 15-minute lifetime, kept in memory by the SPA and sent as `Authorization: Bearer`. Claims: `iss=https://auth.stayhotel.local`, `aud=stay-hotel-api`, `sub=<userId>`, `email`, `roles` (for example `["CUSTOMER"]`), `iat`, `exp`, `jti`.
+- **Refresh token:** opaque random value, 7-day lifetime, delivered only as the cookie `SH_REFRESH` (HttpOnly; Secure (configurable for http dev); SameSite=Strict; Path=`/api/v1/auth`). It is stored server-side as a SHA-256 hash, rotated on every use, and grouped in a family. Reuse of an already rotated token revokes the whole family.
+- Every service validates the JWT itself through JWKS. The gateway does not validate tokens.
+
+`AuthResponse` = `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 900, "user": UserResponse }`
+`UserResponse` = `{ "id": "uuid", "email": "...", "fullName": "...", "phone": "..."|null, "status": "ACTIVE|LOCKED|DISABLED", "roles": ["CUSTOMER"], "createdAt": "ISO-8601" }`
+
+| Method | Path | Auth | Request | Success | Errors |
+|--------|------|------|---------|---------|--------|
+| POST | `/api/v1/auth/register` | none | `{email, password, fullName, phone?}` | 201 `UserResponse`; role is always `CUSTOMER` | 400 `VALIDATION_FAILED`; 409 `EMAIL_ALREADY_REGISTERED` |
+| POST | `/api/v1/auth/login` | none | `{email, password}` | 200 `AuthResponse` + `Set-Cookie: SH_REFRESH` | 400; 401 `INVALID_CREDENTIALS` (same response for unknown email, wrong password or temporary lockout after 5 failures for 15 min); 403 `ACCOUNT_LOCKED` (admin-locked or disabled, only after a correct password) |
+| POST | `/api/v1/auth/refresh` | `SH_REFRESH` cookie | — | 200 `AuthResponse` + rotated cookie | 401 `REFRESH_TOKEN_INVALID` (missing, unknown or expired; cookie cleared); 401 `REFRESH_TOKEN_REUSED` (family revoked; cookie cleared); 401 `REFRESH_TOKEN_STALE` (rotated less than 30 s ago, typically a parallel tab; client retries once with the new cookie); 403 `ACCOUNT_LOCKED` |
+| POST | `/api/v1/auth/logout` | cookie (optional) | — | 204, cookie cleared, token revoked | — (idempotent) |
+| GET | `/api/v1/users/me` | bearer | — | 200 `UserResponse` | 401 `UNAUTHORIZED` |
+| PUT | `/api/v1/users/me` | bearer | `{fullName, phone?}` | 200 `UserResponse` | 400, 401 |
+| PUT | `/api/v1/users/me/password` | bearer | `{currentPassword, newPassword}` | 204; all refresh tokens revoked | 400; 401; 422 `CURRENT_PASSWORD_INCORRECT` |
+| GET | `/api/v1/admin/users?q&status&page&size` | ADMIN | — | 200 `Page<UserResponse>` | 401, 403 `FORBIDDEN` |
+| PATCH | `/api/v1/admin/users/{id}/status` | ADMIN | `{status, reason?}` | 200 `UserResponse`; non-ACTIVE revokes refresh tokens; audited | 404 `USER_NOT_FOUND`; 409 `CANNOT_MODIFY_SELF` |
+| PUT | `/api/v1/admin/users/{id}/roles` | ADMIN | `{roles: [..] (non-empty)}` | 200 `UserResponse`; audited | 404; 409 `CANNOT_MODIFY_SELF` |
+| GET | `/oauth2/jwks` (internal only, **not routed** by the gateway) | none | — | 200 JWK set (public keys) | — |
+
+Validation: email in RFC format, ≤ 255 characters, normalized with trim and lower-case. Password 8–72 characters with at least one letter and one digit. `fullName` 1–150 characters. `phone` optional, ≤ 30 characters, pattern `[0-9+() .-]`.
+Password hashing: BCrypt (strength 12). A dummy hash comparison runs for unknown emails so response timing does not reveal which accounts exist.
+`Page<T>` = `{content, page, size, totalElements, totalPages}`.
+
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|

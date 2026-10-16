@@ -26,7 +26,7 @@ spring:
             response-timeout: 10s
           # CORS is handled by CorsWebFilter (CorsConfig). Guard against duplicate headers if a downstream ever adds its own.
           default-filters:
-            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST
           # Order matters: the more specific /hotels/{id}/reviews route must precede the generic /hotels/** route.
           routes:
             - id: hotel-reviews
@@ -36,7 +36,7 @@ spring:
             - id: auth
               uri: ${services.auth-url}
               predicates:
-                - Path=/api/v1/auth/**,/api/v1/users/**
+                - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/admin/users,/api/v1/admin/users/**
             - id: hotel
               uri: ${services.hotel-url}
               predicates:
