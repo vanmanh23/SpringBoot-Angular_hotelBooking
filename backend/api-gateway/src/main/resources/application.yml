@@ -1,0 +1,70 @@
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+gateway:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+services:
+  auth-url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  hotel-url: ${HOTEL_SERVICE_URL:http://localhost:8082}
+  booking-url: ${BOOKING_SERVICE_URL:http://localhost:8083}
+  payment-url: ${PAYMENT_SERVICE_URL:http://localhost:8084}
+  review-url: ${REVIEW_SERVICE_URL:http://localhost:8085}
+  notification-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
+          # CORS is handled by CorsWebFilter (CorsConfig). Guard against duplicate headers if a downstream ever adds its own.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+          # Order matters: the more specific /hotels/{id}/reviews route must precede the generic /hotels/** route.
+          routes:
+            - id: hotel-reviews
+              uri: ${services.review-url}
+              predicates:
+                - Path=/api/v1/hotels/*/reviews,/api/v1/hotels/*/reviews/**
+            - id: auth
+              uri: ${services.auth-url}
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**
+            - id: hotel
+              uri: ${services.hotel-url}
+              predicates:
+                - Path=/api/v1/hotels,/api/v1/hotels/**,/api/v1/room-types/**,/api/v1/amenities,/api/v1/amenities/**
+            - id: booking
+              uri: ${services.booking-url}
+              predicates:
+                - Path=/api/v1/bookings,/api/v1/bookings/**
+            - id: payment
+              uri: ${services.payment-url}
+              predicates:
+                - Path=/api/v1/payments,/api/v1/payments/**
+            - id: review
+              uri: ${services.review-url}
+              predicates:
+                - Path=/api/v1/reviews,/api/v1/reviews/**
+            - id: notification
+              uri: ${services.notification-url}
+              predicates:
+                - Path=/api/v1/notifications,/api/v1/notifications/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
