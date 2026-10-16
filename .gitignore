@@ -1,0 +1,20 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Java / Maven
+target/
+*.class
+*.log
+hs_err_pid*
+
+# IDE
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
