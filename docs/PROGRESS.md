@@ -1,0 +1,28 @@
+# Progress
+
+Read this first at the start of every session; update it at the end.
+
+Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
+
+| Task ID | Status | Evidence | Next step |
+|---------|--------|----------|-----------|
+| P1 Survey | Completed | `PROJECT_AUDIT.md` §1; design doc read (ch. 1–6, part of 7) | — |
+| M0-1 Repo, git, docs | Completed | git repo on branch `feat/m0-foundation`; `.env` ignored (`git check-ignore -v .env`) | — |
+| M0-2 Backend skeleton | Completed | `mvn -B clean verify` → BUILD SUCCESS, 32 tests PASS | — |
+| M0-3 Uniform errors | Completed | `GlobalExceptionHandlerTest` 4/4 PASS; runtime 404 bodies via gateway | Add 401/403 mapping in M1 |
+| M0-4 Gateway routing + CORS | Completed | `GatewayRoutingTest` 13/13 PASS; curl preflight 200/403 | — |
+| M0-5 First Flyway migration | Completed | `AuthSchemaMigrationTest` 3/3 PASS; `flyway_schema_history` V1 in auth_db | — |
+| M0-6 Angular skeleton | Completed | `ng build` PASS, `ng test` 3/3 PASS | ESLint in M6 |
+| M0-7 Compose stack | Completed | `docker compose up --wait` → 10/10 healthy; E2E curl smoke PASS; role isolation PASS | — |
+| M1 Auth & authorization | Not Started | — | Confirm P-07 (token storage) or accept the default |
+| M2 Hotels & search | Not Started | — | Needs P-08, P-09 |
+| M3 Booking | Not Started | — | Needs P-01..P-04 |
+| M4 Payment | Not Started | — | Needs P-05, P-06 |
+| M5–M8 | Not Started | — | — |
+
+## Session log
+### 2026-10-16 — Session 1 (survey + M0)
+- The working folder was empty; the owner chose to build from scratch here (D-001).
+- Built the backend (8 modules), frontend skeleton, Compose stack and docs.
+- Fixed during verification: CORS test client (D-007), frontend IPv6 healthcheck, nginx header inheritance, CSP vs. critical CSS inlining.
+- Running stack left up: `docker compose ps` (stop with `docker compose down`; volumes kept).
