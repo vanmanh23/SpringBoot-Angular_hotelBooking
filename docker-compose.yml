@@ -10,6 +10,7 @@ x-service-defaults: &service-defaults
     DB_HOST: postgres
     DB_PORT: "5432"
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    AUTH_JWKS_URI: http://auth-service:8081/oauth2/jwks
     JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
 
 services:
@@ -69,6 +70,11 @@ services:
       DB_NAME: auth_db
       DB_USERNAME: auth_user
       DB_PASSWORD: ${AUTH_DB_PASSWORD:?}
+      AUTH_JWT_PRIVATE_KEY: ${AUTH_JWT_PRIVATE_KEY:?generate with scripts/generate-jwt-key.sh}
+      AUTH_JWT_KEY_ID: ${AUTH_JWT_KEY_ID:-auth-key-1}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
 
   hotel-service:
     <<: *service-defaults
