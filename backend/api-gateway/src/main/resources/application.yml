@@ -40,7 +40,7 @@ spring:
             - id: hotel
               uri: ${services.hotel-url}
               predicates:
-                - Path=/api/v1/hotels,/api/v1/hotels/**,/api/v1/room-types/**,/api/v1/amenities,/api/v1/amenities/**
+                - Path=/api/v1/hotels,/api/v1/hotels/**,/api/v1/room-types/**,/api/v1/amenities,/api/v1/amenities/**,/api/v1/manage/hotels,/api/v1/manage/hotels/**
             - id: booking
               uri: ${services.booking-url}
               predicates:

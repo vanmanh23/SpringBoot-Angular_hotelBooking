@@ -80,6 +80,64 @@ Validation: email in RFC format, ≤ 255 characters, normalized with trim and lo
 Password hashing: BCrypt (strength 12). A dummy hash comparison runs for unknown emails so response timing does not reveal which accounts exist.
 `Page<T>` = `{content, page, size, totalElements, totalPages}`.
 
+## M2 — Hotels, room types, amenities, search (contract agreed before implementation)
+
+Hotel status machine:
+- `DRAFT` → `ACTIVE`: ADMIN only (approval). Sets `approvedAt`.
+- `ACTIVE` → `INACTIVE`: assigned MANAGER or ADMIN (hide).
+- `INACTIVE` → `ACTIVE`: ADMIN, or an assigned MANAGER if the hotel was approved before.
+- any → `SUSPENDED`: ADMIN only.
+- `SUSPENDED` → `ACTIVE` / `INACTIVE`: ADMIN only.
+- Any other transition → `409 INVALID_STATUS_TRANSITION`.
+- Only `ACTIVE` hotels are public (BR-06). For non-public hotels the public endpoints answer 404.
+
+Management rights (P-08 → D-013):
+- ADMIN: every hotel.
+- HOTEL_MANAGER: only hotels listed for them in `hotel_managers`. Another hotel → `403 FORBIDDEN`.
+- A manager who creates a hotel is assigned to it automatically. ADMIN assigns or unassigns managers.
+- Assigning a user grants power only while their token also carries the `HOTEL_MANAGER` role.
+
+Money: `VND`, whole numbers (P-03 default, enforced by DB CHECK). Prices in JSON are numbers.
+Times: `checkInTime`/`checkOutTime` are `HH:mm` local to the hotel; `timeZone` is an IANA zone, default `Asia/Ho_Chi_Minh` (P-09 → D-014).
+
+`HotelSummary` = `{id, name, city, address, countryCode, starRating|null, avgRating|null, reviewCount, thumbnailUrl|null, fromPrice, currency, amenities: [code]}`
+`HotelDetail` = `{id, name, description|null, address, city, countryCode, starRating|null, timeZone, checkInTime, checkOutTime, cancellationPolicy|null, avgRating|null, reviewCount, images: [{id, url, caption|null}], amenities: [{code, name}], roomTypes: [RoomType]}`
+`RoomType` = `{id, hotelId, name, description|null, capacity, bedDescription|null, basePrice, currency, totalUnits, status, amenities: [{code, name}]}`
+`ManagedHotel` = `HotelDetail` + `{status, approvedAt|null, managerIds: [uuid], version}`; room types of every status are included.
+
+### Public
+| Method | Path | Query / body | Success | Errors |
+|--------|------|--------------|---------|--------|
+| GET | `/api/v1/hotels` | `city?`, `q?` (name/city text), `checkIn?`, `checkOut?` (ISO dates, both or neither), `guests` (1–40, default 1), `rooms` (1–10, default 1), `minPrice?`, `maxPrice?`, `stars?` (CSV 1–5), `amenities?` (CSV codes, all must match), `sort` = `recommended`\|`price_asc`\|`price_desc`\|`rating_desc`\|`name_asc`, `page` (≥ 0), `size` (1–50, default 20) | 200 `Page<HotelSummary>` | 400 `VALIDATION_FAILED` (checkOut ≤ checkIn, checkIn more than 1 day in the past, stay > 30 nights, minPrice > maxPrice, unknown sort, out-of-range values) |
+| GET | `/api/v1/hotels/{id}` | — | 200 `HotelDetail` (active room types only) | 404 `HOTEL_NOT_FOUND` |
+| GET | `/api/v1/hotels/{id}/room-types` | `guests?`, `rooms?` | 200 `[RoomType]`, active types where `capacity × rooms ≥ guests` and `totalUnits ≥ rooms` | 404 |
+| GET | `/api/v1/amenities` | `category?` = `HOTEL`\|`ROOM` | 200 `[{id, code, name, category}]` | — |
+
+Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà Nẵng").
+**Search results are advisory (BR-08):** they filter by capacity and number of units, but bookings are not subtracted until M3 adds availability. Booking re-checks everything (BR-09).
+
+### Management (bearer token)
+| Method | Path | Who | Body | Success | Errors |
+|--------|------|-----|------|---------|--------|
+| GET | `/api/v1/manage/hotels?status&q&page&size` | ADMIN (all) / MANAGER (own) | — | 200 `Page<ManagedHotelSummary>` (`HotelSummary` + `status`) | 401, 403 |
+| GET | `/api/v1/manage/hotels/{id}` | ADMIN / assigned MANAGER | — | 200 `ManagedHotel` | 403, 404 |
+| POST | `/api/v1/hotels` | ADMIN / MANAGER | `HotelRequest` | 201 `ManagedHotel` (status `DRAFT`) | 400, 403 |
+| PUT | `/api/v1/hotels/{id}` | ADMIN / assigned MANAGER | `HotelRequest` + `version` | 200 `ManagedHotel` | 400, 403, 404, 409 `CONCURRENT_MODIFICATION` |
+| PATCH | `/api/v1/hotels/{id}/status` | per status machine | `{status}` | 200 `ManagedHotel` | 403, 409 `INVALID_STATUS_TRANSITION` |
+| PUT | `/api/v1/hotels/{id}/amenities` | ADMIN / assigned MANAGER | `{codes: [..]}` (HOTEL category) | 200 `ManagedHotel` | 400 `UNKNOWN_AMENITY` |
+| POST | `/api/v1/hotels/{id}/images` | ADMIN / assigned MANAGER | `{url (https, ≤ 1000), caption?}` | 201 `{id, url, caption}` | 400; 409 `IMAGE_LIMIT_REACHED` (max 20) |
+| DELETE | `/api/v1/hotels/{id}/images/{imageId}` | ADMIN / assigned MANAGER | — | 204 | 404 |
+| POST | `/api/v1/hotels/{id}/room-types` | ADMIN / assigned MANAGER | `RoomTypeRequest` | 201 `RoomType` (ACTIVE) | 400; 409 `ROOM_TYPE_NAME_TAKEN` |
+| PUT | `/api/v1/room-types/{id}` | ADMIN / assigned MANAGER | `RoomTypeRequest` + `version` | 200 `RoomType` | 400, 403, 404, 409 |
+| PATCH | `/api/v1/room-types/{id}/status` | ADMIN / assigned MANAGER | `{status: ACTIVE\|INACTIVE}` | 200 `RoomType` | 403, 404 |
+| PUT | `/api/v1/room-types/{id}/amenities` | ADMIN / assigned MANAGER | `{codes: [..]}` (ROOM category) | 200 `RoomType` | 400 |
+| GET / POST | `/api/v1/hotels/{id}/managers` | ADMIN | POST `{userId}` | 200 `[uuid]` / 201 `[uuid]` | 404 |
+| DELETE | `/api/v1/hotels/{id}/managers/{userId}` | ADMIN | — | 204 | 404 |
+| POST | `/api/v1/amenities` | ADMIN | `{code ([A-Z][A-Z0-9_]{1,39}), name, category}` | 201 | 409 `AMENITY_CODE_TAKEN` |
+
+`HotelRequest` = `{name (1–200), description? (≤ 5000), address (1–500), city (1–100), countryCode ([A-Z]{2}), starRating? (1–5), timeZone? (IANA, default Asia/Ho_Chi_Minh), checkInTime (HH:mm, default 14:00), checkOutTime (HH:mm, default 12:00), cancellationPolicy? (≤ 2000)}`
+`RoomTypeRequest` = `{name (1–150), description? (≤ 2000), capacity (1–20), bedDescription? (≤ 200), basePrice (1 000–1 000 000 000 VND, whole number), totalUnits (0–1000)}`
+
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|

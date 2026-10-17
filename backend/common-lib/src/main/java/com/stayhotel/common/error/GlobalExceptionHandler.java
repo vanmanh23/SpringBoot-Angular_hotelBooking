@@ -31,6 +31,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest req) {
+        if (ex instanceof FieldValidationException fve) {
+            return validationFailed(fve.getViolations(), req);
+        }
         return build(ex.getStatus(), ex.getCode(), ex.getMessage(), req);
     }
 
