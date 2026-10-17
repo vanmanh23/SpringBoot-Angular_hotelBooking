@@ -94,6 +94,7 @@ services:
       DB_USERNAME: booking_user
       DB_PASSWORD: ${BOOKING_DB_PASSWORD:?}
       HOTEL_SERVICE_URL: http://hotel-service:8082
+      BOOKING_HOLD_DURATION: ${BOOKING_HOLD_DURATION:-15m}
 
   payment-service:
     <<: *service-defaults

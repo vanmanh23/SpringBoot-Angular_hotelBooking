@@ -90,3 +90,14 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | E2E | `m2_e2e.py` through `:4200` | **PASS**: 19/19 (accent-insensitive search, filters, sort, pagination, 400 on bad dates, detail, room-type fit, 401/403 on writes, draft hidden, no self-approval, cross-manager IDOR blocked, approval makes the hotel public, optimistic lock 409, hide) |
 | Real browser / responsive | — | **NOT RUN**: planned for M6 |
 | Search performance (EXPLAIN / load) | — | **NOT RUN**: dataset too small to be meaningful; M7 |
+
+## 8. M3 verification (2026-10-17)
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend | `cd backend && mvn -B clean verify` | **PASS**: BUILD SUCCESS, 3:58 min, 164 tests (booking 35, hotel 61, auth 30, gateway 22, common 4, others 4 each) |
+| Concurrency | `BookingConcurrencyTest` (real PostgreSQL) | **PASS**: 12 parallel requests for 3 units → 3 created, 9 × 409, counters = 3 (×3 repeats); overlapping stays; 8 parallel retries with one key → 1 booking; cancel vs. expire → exactly 1 transition |
+| Frontend | `npx ng build`; `npx ng test --watch=false` | **PASS**: initial 286 kB / 80 kB transfer; 46/46 |
+| Stack | `docker compose up -d --build --wait` | **PASS**: 10/10 healthy; hotel_db V1+V2, booking_db V1 |
+| E2E | `m3_e2e.py` through `:4200` (booking → real hotel-service over the Docker network) | **PASS**: 16/16 (exact VAT/fee totals, client amount ignored, idempotent replay/reuse, 404 for others, 401 anonymous, 10-way race for the last unit → 1 × 201 / 9 × 409, cancel releases, live expiry with `BOOKING_HOLD_DURATION=20s`, inactive hotel → 422). The hold was restored to 15m afterwards. |
+| Logs | grep for JWTs/passwords and ERROR/WARN in the last 15 min | **PASS**: 0 matches |
+| Real browser | — | **NOT RUN** (M6) |

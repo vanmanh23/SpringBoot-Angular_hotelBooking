@@ -3,7 +3,7 @@
 Source: `hotel-stayed-report.docx` (OBJ §1.3.2, FR §2.3, NFR §2.4, BR §2.5).
 Status values: **Not Started · In Progress · Implemented · Verified · Blocked**. "Verified" requires a passing automated test or recorded run; the evidence column names it.
 
-Last updated: 2026-10-17 (M2).
+Last updated: 2026-10-17 (M3).
 
 ## Objectives
 | ID | Objective | Milestone | Status | Evidence |
@@ -11,10 +11,10 @@ Last updated: 2026-10-17 (M2).
 | OBJ-01 | Users: register, login, profile, roles | M1 | Verified (backend + FE login/register/profile); admin UI in M5/M6 | `AuthFlowIntegrationTest`, FE specs, E2E 22/22 |
 | OBJ-02 | Search by location, dates, guests | M2 (M3 adds booked-unit availability) | Verified (advisory availability) | `HotelSearchIntegrationTest` 22, search page specs, E2E |
 | OBJ-03 | Hotel data: info, amenities, images, room types | M2 | Verified (API); management UI M5/M6 (D-017) | `HotelManagementIntegrationTest` 19, E2E |
-| OBJ-04 | Booking: create, view, track, cancel | M3 | Not Started | |
+| OBJ-04 | Booking: create, view, track, cancel | M3 | Verified (payment confirmation in M4) | booking tests (31), FE specs, E2E 16/16 |
 | OBJ-05 | Payment integration | M4 | Not Started (P-05 pending) | |
 | OBJ-06 | Administration | M1/M5 | In Progress | user admin API verified (M1); hotel/booking/payment admin in M5 |
-| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 132 backend + 37 frontend tests PASS (M2) |
+| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 164 backend + 46 frontend tests PASS (M3), incl. concurrency |
 | OBJ-08 | Deployment: packaging, env config, logging | M0/M8 | In Progress | `docker-compose.yml`, `.env.example`, health checks |
 
 ## Functional requirements
@@ -30,14 +30,20 @@ Last updated: 2026-10-17 (M2).
 | FR-SEARCH-02 | Filters (price, stars, amenities) + sort | hotel-service, FE filters | same | `priceStarsAndAmenityFilters`, `sortingByPrice`, page spec | Verified |
 | FR-SEARCH-03 | Pagination | hotel-service, FE pager | `Page<T>` | `paginationIsStableAndReportsTotals` | Verified |
 | FR-SEARCH-04 | Hotel detail | hotel-service, FE `/hotels/:id` | `GET /api/v1/hotels/{id}` | `publicDetailShowsCatalogueData`, detail spec, E2E | Verified |
-| FR-SEARCH-05 | Availability for dates and party | hotel (capacity/units) + booking (M3) | `GET /hotels/{id}/room-types?guests&rooms` | `publicRoomTypesFilterByParty` | In Progress (capacity only; booked units in M3) |
+| FR-SEARCH-05 | Availability for dates and party | hotel (capacity) + booking (units) | `/hotels/{id}/room-types`, `GET /api/v1/availability` | `publicRoomTypesFilterByParty`, `availableDouble` checks, E2E | Verified on detail page; search list still capacity-only (advisory) |
 | FR-HOTEL-01 | Create hotel | hotel-service | `POST /api/v1/hotels` | `CreationAndApproval` | Verified (API) |
 | FR-HOTEL-02 | Update hotel within scope | hotel-service | `PUT /api/v1/hotels/{id}` (+version) | `Ownership`, `OptimisticLocking` | Verified (API) |
 | FR-HOTEL-03 | Room types | hotel-service | `/hotels/{id}/room-types`, `/room-types/{id}` | room type validation and ownership tests | Verified (API) |
 | FR-HOTEL-04 | Prices | hotel-service | `room_types.base_price` (VND whole) | validation tests | Verified (base price; seasonal rates out of scope) |
 | FR-HOTEL-05 | Capacity and number of units | hotel-service | `capacity`, `total_units` | search capacity tests | Verified |
 | FR-HOTEL-06 | Activate / suspend / hide | hotel-service | `PATCH /hotels/{id}/status`, `/room-types/{id}/status` | `StatusMachine`, `DomainRulesTest` | Verified |
-| FR-BOOK-01..07 | Booking lifecycle, pricing, inventory | booking-service | `bookings`, `booking_rooms`, ... | — | Not Started |
+| FR-BOOK-01 | Create booking | booking-service, FE checkout | `POST /api/v1/bookings` | `Creation` tests, checkout spec, E2E | Verified |
+| FR-BOOK-02 | Price calculation | `PriceCalculator` | quote + booking | `PriceCalculatorTest`, E2E exact totals | Verified |
+| FR-BOOK-03 | Store stay data and price snapshot | `bookings`, `booking_rooms` | — | `laterPriceChangesDoNotAlterExistingBookings` | Verified (no guest-name list, D-022) |
+| FR-BOOK-04 | View own bookings | booking-service, FE my-bookings/detail | `GET /bookings/me`, `/bookings/{id}` | `Ownership` tests, FE specs | Verified |
+| FR-BOOK-05 | Cancel per policy | booking-service, FE detail | `POST /bookings/{id}/cancel` | 48 h rule tests, E2E | Verified (refund in M4) |
+| FR-BOOK-06 | State transitions | `BookingStatus`, history | `booking_status_history` | lifecycle + race tests | Verified |
+| FR-BOOK-07 | No overbooking | `InventoryRepository` | `room_type_inventory` | `BookingConcurrencyTest`, E2E race | Verified |
 | FR-PAY-01..06 | Payment, verification, idempotency, refund | payment-service | `payments`, `refunds` | — | Not Started |
 | FR-ADMIN-01 | Admin user management | auth-service | `/api/v1/admin/users`; `audit_logs` | `Administration` tests (6), E2E | Verified (API); UI in M5/M6 |
 | FR-ADMIN-02 | Admin hotel moderation | hotel-service | approval/suspension, `/manage/hotels`, manager assignment | `CreationAndApproval`, assignment tests | Verified (API); UI M5/M6 |
@@ -50,7 +56,7 @@ Last updated: 2026-10-17 (M2).
 | NFR-01 | Performance | k6 tests in M7; indexes per query | Not Started | |
 | NFR-02 | Scalability | Stateless services behind the gateway; DB per service | In Progress | architecture (M0) |
 | NFR-03 | Security | uniform errors; CORS allow-list; no secrets in repo; per-service DB roles; JWT in every service; BCrypt-12; hashed rotating refresh tokens; lockout; no secrets in logs | In Progress | M1 tests + E2E; log scan found 0 tokens/passwords |
-| NFR-04 | Consistency (no overbooking) | conditional inventory update (P-01) | Not Started | |
+| NFR-04 | Consistency (no overbooking) | conditional UPDATE per night (D-018) | Verified | `BookingConcurrencyTest` 6/6 (×3 repeats), E2E 10-way race |
 | NFR-05 | Reliability | gateway timeouts (2 s connect, 10 s response); retries/outbox in M4 | In Progress | `api-gateway/application.yml` |
 | NFR-06 | Maintainability | module-per-service, common-lib limited to cross-cutting code | In Progress | repo structure |
 | NFR-07 | Testability | JUnit 5, Testcontainers (Postgres 17), Vitest | In Progress | `mvn verify` PASS |
@@ -61,27 +67,27 @@ Last updated: 2026-10-17 (M2).
 ## Business rules
 | ID | Rule (short) | Where enforced | Status |
 |----|--------------|----------------|--------|
-| BR-01 | check-in < check-out | booking DTO + DB CHECK | Not Started |
-| BR-02 | guests > 0 and ≤ capacity | booking-service | Not Started |
-| BR-03 | nights = check-out − check-in | pricing | Not Started |
-| BR-04 | booking window policy | booking-service | Not Started |
-| BR-05 | hotel time zone | `hotels.time_zone` (D-014) | Implemented (stored and exposed); applied to stay rules in M3 |
+| BR-01 | check-in < check-out | `StayPolicy` + DB CHECK | Verified |
+| BR-02 | guests > 0 and ≤ capacity | `StayPolicy` | Verified |
+| BR-03 | nights = check-out − check-in | DB CHECK `nights = check_out - check_in` | Verified |
+| BR-04 | booking window policy | 1–30 nights, ≤ 365 days ahead | Verified |
+| BR-05 | hotel time zone | hotel-local today / check-in moment / completion | Verified |
 | BR-06 | only ACTIVE hotels are public | search SQL, `requirePublic` | Verified |
-| BR-07 | room type fits capacity | search and room-type filter; booking re-check in M3 | In Progress |
+| BR-07 | room type fits capacity | search filter + booking re-check | Verified |
 | BR-08 | search availability is advisory | API_CONTRACT note + UI copy on results and detail | Implemented |
-| BR-09 | re-check availability on booking | booking transaction | Not Started |
-| BR-10 | holds and confirmed bookings count toward inventory | inventory model | Not Started |
-| BR-11 | concurrency control | conditional update + concurrency test | Not Started |
-| BR-12 | price computed in backend | booking-service | Not Started |
-| BR-13 | total from nights, qty, price, tax, fee | pricing | Not Started |
-| BR-14 | price snapshot | `booking_rooms`/nights | Not Started |
-| BR-15 | currency and rounding | P-03 | Not Started |
-| BR-16 | unique booking code | DB UNIQUE | Not Started |
-| BR-17 | only authorized users view/edit/cancel | ownership checks | Not Started |
-| BR-18 | valid state transitions | state machine + history | Not Started |
-| BR-19 | payment deadline | `expires_at` + job | Not Started |
-| BR-20 | release on expiry/cancel | inventory release | Not Started |
-| BR-21 | idempotent create | `Idempotency-Key` | Not Started |
+| BR-09 | re-check availability on booking | atomic reserve in the booking transaction | Verified |
+| BR-10 | holds and confirmed bookings count toward inventory | reserved until EXPIRED/CANCELLED | Verified |
+| BR-11 | concurrency control | conditional UPDATE + row locks | Verified |
+| BR-12 | price computed in backend | request has no amounts; extra fields ignored (tested) | Verified |
+| BR-13 | total from nights, qty, price, tax, fee | `PriceCalculator` + DB CHECK on total | Verified |
+| BR-14 | price snapshot | `bookings` + `booking_rooms` | Verified |
+| BR-15 | currency and rounding | VND, HALF_UP, whole đồng (D-020) | Verified |
+| BR-16 | unique booking code | `SH-yyMMdd-XXXXXXXX` + UNIQUE | Verified |
+| BR-17 | only authorized users view/edit/cancel | owner or ADMIN, 404 otherwise | Verified |
+| BR-18 | valid state transitions | `BookingStatus` + history + row lock | Verified |
+| BR-19 | payment deadline | 15-minute hold + job (live E2E with 20 s hold) | Verified |
+| BR-20 | release on expiry/cancel | `release()` in the same transaction | Verified |
+| BR-21 | idempotent create | mandatory key, per user, hash check | Verified |
 | BR-22 | payment amount from backend | payment-service | Not Started |
 | BR-23 | only verified results update state | signed webhook | Not Started |
 | BR-24 | duplicate webhook is a no-op | unique transaction ref | Not Started |
@@ -89,7 +95,7 @@ Last updated: 2026-10-17 (M2).
 | BR-26 | cancel ≠ refunded | separate refund record | Not Started |
 | BR-27 | refund follows policy | P-04 | Not Started |
 | BR-28 | guest: public only | deny-by-default security config in every service | Verified (no public business endpoints yet; health only) |
-| BR-29 | customer: own bookings | ownership | Not Started |
+| BR-29 | customer: own bookings | `loadVisible`, `/bookings/me` | Verified |
 | BR-30 | manager: assigned hotels | `HotelAccessPolicy` (D-013) | Verified (hotels, room types, images, amenities) |
 | BR-31 | admin: admin functions | URL rule + `@PreAuthorize`; no self-modification | Verified for user admin |
 | BR-32 | audit sensitive admin actions | `audit_logs` | Verified for user status/role changes |

@@ -25,11 +25,21 @@ Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
 | M2-3 Public search/detail/room types | Completed | `HotelSearchIntegrationTest` 22/22; E2E 8 search checks | pg_trgm if needed (M7) |
 | M2-4 Angular home/search/detail on real API | Completed | `ng test` 37/37; `ng build` PASS | Browser/responsive check (M6) |
 | M2-5 Demo seed script | Completed | `scripts/seed-demo-data.py` run twice (second run skips everything) | — |
-| M3 Booking | Not Started | — | Needs P-01..P-04 |
+| M3-1 Pricing + hotel tax/fee rates | Completed | `PriceCalculatorTest` 4/4; hotel V2; E2E exact totals | — |
+| M3-2 Booking create/quote/view/cancel + idempotency | Completed | `BookingFlowIntegrationTest` 18/18; E2E | Manager booking view (M5) |
+| M3-3 Atomic inventory + concurrency proof | Completed | `BookingConcurrencyTest` 6/6; E2E 10-way race 1×201 / 9×409 | Load test (M7) |
+| M3-4 Hold expiry + completion job | Completed | lifecycle tests; live E2E expiry with 20 s hold | — |
+| M3-5 Angular checkout, booking detail, my bookings | Completed | `ng test` 46/46; `ng build` PASS | Payment UI (M4) |
 | M4 Payment | Not Started | — | Needs P-05, P-06 |
 | M5–M8 | Not Started | — | — |
 
 ## Session log
+### 2026-10-17 — Session 4 (M3)
+- The owner accepted P-01..P-04 with VAT 8 % / fee 5 % → D-018..D-021. Branch `feat/m3-booking`.
+- Backend 164/164, frontend 46/46, stack E2E 16/16 PASS.
+- Fixed during verification: `confirmPaid` rolled back the expiry it performed before refusing (added noRollbackFor); `quote()` held a DB transaction during the HTTP call (removed); the checkout quote never fired because inputs arrive after construction (combined with `toObservable`); test-only issues (shared DB counts, microsecond rounding, single-threaded stub, rxjs vs. fake timers).
+- Open: payment (M4) is the only way to CONFIRM; the search list does not subtract booked units; no guest-name list.
+
 ### 2026-10-17 — Session 3 (M2)
 - The owner accepted P-08/P-09 → D-013/D-014. Branch `feat/m2-hotels`, started from `feat/m1-auth`.
 - Backend 132/132, frontend 37/37, stack E2E 19/19 PASS.

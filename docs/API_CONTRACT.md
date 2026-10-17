@@ -36,7 +36,7 @@ Evidence: `GatewayRoutingTest` (13 cases PASS); runtime curl smoke recorded in `
 | `/api/v1/hotels/{id}/reviews[/**]` | review-service (8085), matched before the hotel route |
 | `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/admin/users[/**]` | auth-service (8081) |
 | `/api/v1/hotels[/**]`, `/api/v1/room-types/**`, `/api/v1/amenities[/**]`, `/api/v1/manage/hotels[/**]` | hotel-service (8082) |
-| `/api/v1/bookings[/**]` | booking-service (8083) |
+| `/api/v1/bookings[/**]`, `/api/v1/availability` | booking-service (8083) |
 | `/api/v1/payments[/**]` | payment-service (8084) |
 | `/api/v1/reviews[/**]` | review-service (8085) |
 | `/api/v1/notifications[/**]` | notification-service (8086) |
@@ -139,7 +139,8 @@ Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà N�
 `HotelRequest` = `{name (1–200), description? (≤ 5000), address (1–500), city (1–100), countryCode ([A-Z]{2}), starRating? (1–5), timeZone? (IANA, default Asia/Ho_Chi_Minh), checkInTime (HH:mm, default 14:00), checkOutTime (HH:mm, default 12:00), cancellationPolicy? (≤ 2000)}`
 `RoomTypeRequest` = `{name (1–150), description? (≤ 2000), capacity (1–20), bedDescription? (≤ 200), basePrice (1 000–1 000 000 000 VND, whole number), totalUnits (0–1000)}`
 
-## M3 — Booking core (contract agreed before implementation)
+## M3 — Booking core — **Implemented & verified**
+Evidence: `BookingFlowIntegrationTest` (18), `BookingConcurrencyTest` (6), `PriceCalculatorTest` (4), `HttpHotelCatalogTest` (3), frontend checkout/booking specs, stack E2E 16/16 (`PROJECT_AUDIT.md` §8).
 
 Owner decisions (P-01..P-04, see DECISIONS D-018..D-021):
 - **Inventory:** counted per room type per night in booking_db. A booking reserves `quantity` units on every night `[checkIn, checkOut)` in **one conditional UPDATE**, executed against the room type's current `totalUnits` read from hotel-service. If any night lacks capacity, nothing is reserved and the caller gets `409 ROOM_SOLD_OUT`. Holds (`PENDING_PAYMENT`) and `CONFIRMED` bookings both count (BR-10).
@@ -189,11 +190,7 @@ Gateway change: `/api/v1/availability` → booking-service.
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|
-| Hotels | GET | `/api/v1/hotels/{hotelId}/availability` (real availability from booking data) | none | M3 |
-| Bookings | POST | `/api/v1/bookings` | CUSTOMER + Idempotency-Key | M3 |
-| Bookings | GET | `/api/v1/bookings/me` | bearer | M3 |
-| Bookings | GET | `/api/v1/bookings/{bookingId}` | owner / manager / admin | M3 |
-| Bookings | POST | `/api/v1/bookings/{bookingId}/cancel` | owner | M3 |
+| Bookings | GET | `/api/v1/manage/hotels/{hotelId}/bookings` (manager view, UC-11) | assigned MANAGER / ADMIN | M5 |
 | Payments | POST | `/api/v1/payments` | owner of booking | M4 |
 | Payments | GET | `/api/v1/payments/{paymentId}`, `/api/v1/payments/booking/{bookingId}` | owner / admin | M4 |
 | Payments | POST | `/api/v1/payments/webhooks/{provider}` | provider signature | M4 |
@@ -206,4 +203,6 @@ Gateway change: `/api/v1/availability` → booking-service.
 - Refresh token travels in an HttpOnly cookie instead of the body (D-009).
 - Password change (`PUT /users/me/password`) and admin user management (`/admin/users`) are additions not listed in design §6.7.1 (they cover FR-AUTH-05 and FR-ADMIN-01).
 - Management reads live under `/api/v1/manage/hotels` so that public and management views never share a response shape.
+- Availability lives at `/api/v1/availability?hotelId=…` (booking-service owns the data) instead of `/hotels/{id}/availability`.
+- Booking request uses `checkInDate`/`checkOutDate` (design §6.8.1); search keeps `checkIn`/`checkOut`.
 - Webhook path fixed as `/api/v1/payments/webhooks/{provider}` (design: "path configured by backend").

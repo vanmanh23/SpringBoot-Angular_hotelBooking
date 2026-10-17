@@ -90,15 +90,46 @@ Source of truth order: confirmed business requirements & security rules → runn
 ### D-017 — Hotel management UI deferred
 - **Decision:** In M2 the Angular app covers the **public** flows (home search, results, detail). Hotel/room management for managers and admins is available through the API (verified by tests and E2E) and gets its UI in M5/M6 together with the other admin screens.
 
+### D-018 — Inventory per room type per night (was P-01; owner approved on 2026-10-17)
+- **Decision:** `room_type_inventory(room_type_id, stay_date, reserved_units)` in booking_db. To reserve, booking-service runs, inside the booking transaction:
+  1. `INSERT … ON CONFLICT DO NOTHING` creates missing night rows.
+  2. **One** `UPDATE … SET reserved_units = reserved_units + :qty WHERE … AND reserved_units + :qty <= :totalUnits`; success only if every night was updated.
+- **Where capacity comes from:** `totalUnits` is the room type's current value from hotel-service, so there is one source of truth (D-015).
+- **Why it is safe:** PostgreSQL row locks + re-evaluation of the WHERE clause on the latest committed row. Two bookings can never both take the last unit, and no read-then-write race is possible. Room types are reserved in id order, so concurrent multi-line bookings lock in the same order (no deadlock). Deadlocks or lock timeouts still map to 409 (`ConcurrencyFailureException`).
+- **Evidence:** `BookingConcurrencyTest` (12 parallel requests for 3 units, ×3 runs; overlapping stays; same key; cancel vs. expire) and the stack E2E (10 customers, 1 unit → 1 created, 9 × 409).
+- **Trade-off:** If a manager lowers `totalUnits` below what is already reserved, existing bookings are kept and new ones are refused until reservations drop.
+
+### D-019 — Hold time and lifecycle job (was P-02)
+- **Decision:** A hold lasts 15 minutes (`BOOKING_HOLD_DURATION`, default `15m`).
+  - `BookingLifecycleJob` runs every 30 s: overdue holds → `EXPIRED`, units released.
+  - Every 15 min: `CONFIRMED` bookings whose check-out date has passed in the hotel time zone → `COMPLETED`.
+  - Both queries use `FOR UPDATE SKIP LOCKED`, so several instances can run the job, and a booking being cancelled at that moment is skipped rather than double-processed.
+- **Payment arriving after the deadline:** `confirmPaid` re-checks `expiresAt`. An overdue hold is expired (and that change is committed) and the confirmation is refused; P-06 decides what happens to the money in M4.
+
+### D-020 — Pricing (was P-03): VAT 8 %, service fee 5 %, per hotel
+- **Decision:** `hotels.tax_rate_percent` (default 8) and `service_fee_percent` (default 5), each 0–30, editable per hotel.
+  - `fee = round(subtotal × fee%)`, then `VAT = round((subtotal + fee) × VAT%)`. VAT is charged on the service fee too, as is usual for Vietnamese hotel invoices.
+  - VND, HALF_UP, whole đồng.
+  - The booking stores every component, both rates, the room type names and the unit prices (BR-14). A later price change never alters an existing booking (tested).
+- **Not in scope:** seasonal or nightly rates (a `booking_room_nights` table would be needed) and discounts (`discount_amount` is always 0 for now).
+
+### D-021 — Cancellation policy (was P-04)
+- **Decision:**
+  - `PENDING_PAYMENT`: can always be cancelled; `refundEligible = null` because nothing was paid.
+  - `CONFIRMED`: can be cancelled until the hotel-local check-in moment (`check_in` + hotel `check_in_time` in the hotel time zone). `refundEligible = true` if ≥ 48 h before that moment, else `false`. After the check-in moment → `409 CANCELLATION_NOT_ALLOWED`.
+  - Cancelling never means "refunded" (BR-26): the refund is a separate payment-service record (M4).
+
+### D-022 — Booking scope choices
+- **Idempotency:** `Idempotency-Key` is mandatory for `POST /bookings`. It is scoped per user, and the request body is stored as a SHA-256 hash. If two concurrent requests use the same key, the unique constraint decides the winner and the other request replays the result.
+- **No existence leak:** another user's booking answers 404, not 403.
+- **Not implemented:** individual guest names (`booking_guests`) are not collected; the booking keeps adult/child counts and one contact person. Hotel managers do not yet see the bookings of their hotels (UC-11) — that view comes in M5.
+- **Catalogue call:** booking-service calls hotel-service's **public** hotel detail with 2 s connect / 3 s read timeouts, outside any DB transaction. A failure → `503 HOTEL_SERVICE_UNAVAILABLE` and nothing is reserved. No retry and no circuit breaker yet (M7).
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)
 
 | ID | Question | Recommended default | Blocks |
 |----|----------|---------------------|--------|
-| P-01 | Inventory model: per room type (count) or per physical room? | **Model A:** per room type per night, a `room_type_inventory(room_type_id, stay_date, total, held, booked)` row in booking_db, reserved with a conditional `UPDATE ... WHERE held+booked+qty <= total` per night inside one transaction. Physical rooms remain hotel data only. | M3 |
-| P-02 | Payment hold time for `PENDING_PAYMENT` | 15 minutes, released by a scheduled expiry job | M3 |
-| P-03 | Currency, rounding, tax and fees | VND only, 0 decimals, HALF_UP; tax and fee as % configured per hotel and snapshotted per booking | M3 |
-| P-04 | Cancellation and refund policy | Free cancel until 48 h before check-in (local hotel time); after that, no refund. A refund is a separate record (`REFUND_PENDING` → `REFUNDED`). | M3/M4 |
 | P-05 | Payment gateway | No merchant account is available, so build a **sandbox provider** inside payment-service with HMAC-SHA256 signed webhooks (same shape as VNPay/Stripe). A real gateway needs credentials from the owner. | M4 |
 | P-06 | Late payment (succeeds after the booking EXPIRED) | Never auto-confirm: if inventory is still free, re-reserve and confirm; otherwise refund automatically and flag it for review | M4 |
