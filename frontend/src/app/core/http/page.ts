@@ -1,0 +1,8 @@
+/** Pagination envelope used by every list endpoint (docs/API_CONTRACT.md). */
+export interface Page<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}

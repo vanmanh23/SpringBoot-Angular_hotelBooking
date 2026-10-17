@@ -9,6 +9,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage),
   },
   {
+    path: 'hotels',
+    title: 'Hotels · Stay Hotel',
+    loadComponent: () => import('./features/hotels/hotel-search.page').then((m) => m.HotelSearchPage),
+  },
+  {
+    path: 'hotels/:id',
+    title: 'Hotel · Stay Hotel',
+    loadComponent: () => import('./features/hotels/hotel-detail.page').then((m) => m.HotelDetailPage),
+  },
+  {
     path: 'login',
     title: 'Sign in · Stay Hotel',
     canActivate: [guestGuard],
