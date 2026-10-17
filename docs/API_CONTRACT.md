@@ -139,6 +139,53 @@ Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà N�
 `HotelRequest` = `{name (1–200), description? (≤ 5000), address (1–500), city (1–100), countryCode ([A-Z]{2}), starRating? (1–5), timeZone? (IANA, default Asia/Ho_Chi_Minh), checkInTime (HH:mm, default 14:00), checkOutTime (HH:mm, default 12:00), cancellationPolicy? (≤ 2000)}`
 `RoomTypeRequest` = `{name (1–150), description? (≤ 2000), capacity (1–20), bedDescription? (≤ 200), basePrice (1 000–1 000 000 000 VND, whole number), totalUnits (0–1000)}`
 
+## M3 — Booking core (contract agreed before implementation)
+
+Owner decisions (P-01..P-04, see DECISIONS D-018..D-021):
+- **Inventory:** counted per room type per night in booking_db. A booking reserves `quantity` units on every night `[checkIn, checkOut)` in **one conditional UPDATE**, executed against the room type's current `totalUnits` read from hotel-service. If any night lacks capacity, nothing is reserved and the caller gets `409 ROOM_SOLD_OUT`. Holds (`PENDING_PAYMENT`) and `CONFIRMED` bookings both count (BR-10).
+- **Hold:** 15 minutes (`expiresAt`). A scheduled job moves overdue holds to `EXPIRED` and releases the units (BR-19/20).
+- **Price (BR-12..15):** computed by the backend only; the request carries no amounts.
+  - `lineSubtotal = basePrice × quantity × nights`
+  - `subtotal = Σ lineSubtotal`
+  - `fee = round(subtotal × serviceFeePercent / 100)`
+  - `tax = round((subtotal + fee) × taxRatePercent / 100)`
+  - `discount = 0`
+  - `total = subtotal + fee + tax − discount`
+  - VND, rounded HALF_UP to whole đồng. Hotel defaults: VAT 8 %, service fee 5 %, editable per hotel.
+  - Every component, both rates, the room type names and the unit prices are snapshotted on the booking (BR-14).
+- **Cancellation (P-04):** `PENDING_PAYMENT` can always be cancelled. `CONFIRMED` can be cancelled until the hotel-local check-in time. It is **refund-eligible** only if the cancellation happens ≥ 48 h before that moment. The refund itself is handled by payment-service in M4 (BR-26). Cancelling releases inventory.
+- **Booking state machine (BR-18):**
+  - `PENDING_PAYMENT` → `CONFIRMED` (payment, M4) | `CANCELLED` | `EXPIRED`
+  - `CONFIRMED` → `CANCELLED` | `COMPLETED` (job, after check-out date in the hotel time zone)
+  - Any other transition → `409 INVALID_STATUS_TRANSITION`.
+  - Every transition is written to `booking_status_history`.
+  - Concurrent transitions on the same booking are serialized with a row lock, so only one wins.
+
+Stay rules (BR-01..05):
+- `checkOutDate > checkInDate`; 1–30 nights.
+- `checkInDate` ≥ today **in the hotel time zone** and ≤ 365 days ahead.
+- 1–5 room lines with distinct room types, 1–10 units per line, ≤ 10 rooms in total.
+- `adults` ≥ number of rooms; `children` ≥ 0.
+- `adults + children` ≤ Σ `capacity × quantity`.
+- Hotel and room types must be ACTIVE and the room types must belong to the hotel.
+
+`BookingRequest` = `{hotelId, checkInDate, checkOutDate, adults, children, rooms: [{roomTypeId, quantity}], contactName (1–150), contactEmail, contactPhone? (≤ 30), specialRequests? (≤ 1000)}`
+`Quote` = `{hotelId, hotelName, checkInDate, checkOutDate, nights, currency, lines: [{roomTypeId, roomTypeName, quantity, unitPrice, nights, lineSubtotal}], subtotal, serviceFeePercent, feeAmount, taxRatePercent, taxAmount, discountAmount, totalAmount, available}`
+`Booking` = `{id, bookingCode, status, hotelId, hotelName, hotelTimeZone, checkInDate, checkOutDate, checkInTime, nights, adults, children, lines[], subtotal, serviceFeePercent, feeAmount, taxRatePercent, taxAmount, discountAmount, totalAmount, currency, contactName, contactEmail, contactPhone, specialRequests, expiresAt|null, confirmedAt|null, cancelledAt|null, cancelReason|null, refundEligible|null, freeCancellationUntil, createdAt, history: [{fromStatus|null, toStatus, reason, actor, at}]}`
+
+| Method | Path | Auth | Request | Success | Errors |
+|--------|------|------|---------|---------|--------|
+| GET | `/api/v1/availability?hotelId&checkIn&checkOut` | none | — | 200 `{hotelId, checkIn, checkOut, roomTypes: [{roomTypeId, totalUnits, availableUnits}]}`; advisory, not a hold | 400; 404 `HOTEL_NOT_AVAILABLE` |
+| POST | `/api/v1/bookings/quote` | CUSTOMER | `BookingRequest` | 200 `Quote` (no reservation) | 400; 422 `HOTEL_NOT_AVAILABLE` / `ROOM_TYPE_NOT_AVAILABLE` / `CAPACITY_EXCEEDED`; 503 `HOTEL_SERVICE_UNAVAILABLE` |
+| POST | `/api/v1/bookings` | CUSTOMER + header `Idempotency-Key` (8–100 chars `[A-Za-z0-9_-]`) | `BookingRequest` | 201 `Booking` (`PENDING_PAYMENT`, units reserved). The same key with the same body replays the original booking (200, header `Idempotent-Replayed: true`). | 400 (missing key → `fieldErrors[idempotencyKey]`); 409 `ROOM_SOLD_OUT`; 422 `IDEMPOTENCY_KEY_REUSED` (same key, different body) and the 422s above; 503 |
+| GET | `/api/v1/bookings/me?status&page&size` | bearer | — | 200 `Page<BookingSummary>` (`{id, bookingCode, status, hotelId, hotelName, checkInDate, checkOutDate, nights, totalAmount, currency, expiresAt, createdAt}`), newest first | 401 |
+| GET | `/api/v1/bookings/{id}` | owner or ADMIN | — | 200 `Booking` | 404 `BOOKING_NOT_FOUND` (also for other users' bookings: no existence leak) |
+| GET | `/api/v1/bookings/{id}/status` | owner or ADMIN | — | 200 `{id, status, expiresAt}` | 404 |
+| POST | `/api/v1/bookings/{id}/cancel` | owner or ADMIN | `{reason? (≤ 300)}` | 200 `Booking` (`CANCELLED`, `refundEligible` set) | 404; 409 `INVALID_STATUS_TRANSITION` / `CANCELLATION_NOT_ALLOWED` (check-in time passed) |
+
+Hotel-service change: `taxRatePercent` and `serviceFeePercent` (0–30, two decimals; defaults 8 and 5) are added to `HotelRequest` (optional), `HotelDetail` and `ManagedHotel`.
+Gateway change: `/api/v1/availability` → booking-service.
+
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|

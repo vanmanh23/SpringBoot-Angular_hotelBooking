@@ -76,6 +76,7 @@ class GatewayRoutingTest {
             "/api/v1/manage/hotels/123, hotel",
             "/api/v1/hotels/123/reviews, review",
             "/api/v1/bookings/me, booking",
+            "/api/v1/availability, booking",
             "/api/v1/payments/abc, payment",
             "/api/v1/reviews/abc, review",
             "/api/v1/notifications/me, notification"

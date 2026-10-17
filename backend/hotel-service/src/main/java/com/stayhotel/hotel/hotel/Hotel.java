@@ -63,6 +63,12 @@ public class Hotel {
     @Column(name = "cancellation_policy")
     private String cancellationPolicy;
 
+    @Column(name = "tax_rate_percent", nullable = false, precision = 5, scale = 2)
+    private BigDecimal taxRatePercent;
+
+    @Column(name = "service_fee_percent", nullable = false, precision = 5, scale = 2)
+    private BigDecimal serviceFeePercent;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private HotelStatus status;
@@ -116,6 +122,8 @@ public class Hotel {
         checkInTime = d.checkInTime();
         checkOutTime = d.checkOutTime();
         cancellationPolicy = blankToNull(d.cancellationPolicy());
+        taxRatePercent = d.taxRatePercent();
+        serviceFeePercent = d.serviceFeePercent();
         updatedAt = now;
     }
 
@@ -187,6 +195,14 @@ public class Hotel {
 
     public String getCancellationPolicy() {
         return cancellationPolicy;
+    }
+
+    public BigDecimal getTaxRatePercent() {
+        return taxRatePercent;
+    }
+
+    public BigDecimal getServiceFeePercent() {
+        return serviceFeePercent;
     }
 
     public HotelStatus getStatus() {

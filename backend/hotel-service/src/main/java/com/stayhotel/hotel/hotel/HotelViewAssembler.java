@@ -28,8 +28,8 @@ class HotelViewAssembler {
                 .stream().map(RoomTypeResponse::from).toList();
         return new HotelDtos.HotelDetailResponse(h.getId(), h.getName(), h.getDescription(), h.getAddress(),
                 h.getCity(), h.getCountryCode(), h.getStarRating(), h.getTimeZone(), h.getCheckInTime(),
-                h.getCheckOutTime(), h.getCancellationPolicy(), h.getAvgRating(), h.getReviewCount(), imagesOf(h),
-                AmenityRef.sorted(h.getAmenities()), types);
+                h.getCheckOutTime(), h.getCancellationPolicy(), h.getTaxRatePercent(), h.getServiceFeePercent(),
+                h.getAvgRating(), h.getReviewCount(), imagesOf(h), AmenityRef.sorted(h.getAmenities()), types);
     }
 
     HotelDtos.ManagedHotelResponse managedView(Hotel h) {
@@ -37,8 +37,9 @@ class HotelViewAssembler {
                 .stream().map(RoomTypeResponse::from).toList();
         return new HotelDtos.ManagedHotelResponse(h.getId(), h.getName(), h.getDescription(), h.getAddress(),
                 h.getCity(), h.getCountryCode(), h.getStarRating(), h.getTimeZone(), h.getCheckInTime(),
-                h.getCheckOutTime(), h.getCancellationPolicy(), h.getAvgRating(), h.getReviewCount(), imagesOf(h),
-                AmenityRef.sorted(h.getAmenities()), types, h.getStatus(), h.getApprovedAt(),
+                h.getCheckOutTime(), h.getCancellationPolicy(), h.getTaxRatePercent(), h.getServiceFeePercent(),
+                h.getAvgRating(), h.getReviewCount(), imagesOf(h), AmenityRef.sorted(h.getAmenities()), types,
+                h.getStatus(), h.getApprovedAt(),
                 managers.findByIdHotelId(h.getId()).stream().map(HotelManager::getUserId).sorted().toList(),
                 h.getVersion());
     }

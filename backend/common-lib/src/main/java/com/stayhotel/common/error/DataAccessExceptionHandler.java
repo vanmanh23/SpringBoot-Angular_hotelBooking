@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -23,8 +24,12 @@ public class DataAccessExceptionHandler {
     public static final String CONCURRENT_MODIFICATION = "CONCURRENT_MODIFICATION";
     private static final Logger log = LoggerFactory.getLogger(DataAccessExceptionHandler.class);
 
-    @ExceptionHandler(OptimisticLockingFailureException.class)
-    public ResponseEntity<ApiError> handleOptimisticLock(OptimisticLockingFailureException ex, HttpServletRequest req) {
+    /** Optimistic lock conflicts, deadlocks and lock timeouts: the client may simply retry. */
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    public ResponseEntity<ApiError> handleConcurrency(ConcurrencyFailureException ex, HttpServletRequest req) {
+        if (!(ex instanceof OptimisticLockingFailureException)) {
+            log.warn("Concurrency failure on {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getClass().getSimpleName());
+        }
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiError.of(409, CONCURRENT_MODIFICATION,
                 "The resource was modified by someone else. Reload and try again.", req.getRequestURI()));
     }

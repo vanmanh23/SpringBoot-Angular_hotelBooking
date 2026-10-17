@@ -44,7 +44,7 @@ spring:
             - id: booking
               uri: ${services.booking-url}
               predicates:
-                - Path=/api/v1/bookings,/api/v1/bookings/**
+                - Path=/api/v1/bookings,/api/v1/bookings/**,/api/v1/availability
             - id: payment
               uri: ${services.payment-url}
               predicates:

@@ -93,6 +93,7 @@ services:
       DB_NAME: booking_db
       DB_USERNAME: booking_user
       DB_PASSWORD: ${BOOKING_DB_PASSWORD:?}
+      HOTEL_SERVICE_URL: http://hotel-service:8082
 
   payment-service:
     <<: *service-defaults

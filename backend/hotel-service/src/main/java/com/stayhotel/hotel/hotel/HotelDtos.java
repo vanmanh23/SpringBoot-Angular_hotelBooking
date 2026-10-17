@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.stayhotel.hotel.amenity.AmenityDtos.AmenityRef;
 import com.stayhotel.hotel.roomtype.RoomTypeDtos.RoomTypeResponse;
 import com.stayhotel.hotel.support.IanaTimeZone;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +25,9 @@ public final class HotelDtos {
     public static final String DEFAULT_TIME_ZONE = "Asia/Ho_Chi_Minh";
     private static final LocalTime DEFAULT_CHECK_IN = LocalTime.of(14, 0);
     private static final LocalTime DEFAULT_CHECK_OUT = LocalTime.of(12, 0);
+    /** Owner-approved defaults (DECISIONS D-020): VAT 8 %, service fee 5 %. */
+    public static final BigDecimal DEFAULT_TAX_RATE = new BigDecimal("8.00");
+    public static final BigDecimal DEFAULT_SERVICE_FEE = new BigDecimal("5.00");
 
     private HotelDtos() {
     }
@@ -38,6 +44,8 @@ public final class HotelDtos {
             @JsonFormat(pattern = "HH:mm") LocalTime checkInTime,
             @JsonFormat(pattern = "HH:mm") LocalTime checkOutTime,
             @Size(max = 2000) String cancellationPolicy,
+            @DecimalMin("0") @DecimalMax("30") @Digits(integer = 2, fraction = 2) BigDecimal taxRatePercent,
+            @DecimalMin("0") @DecimalMax("30") @Digits(integer = 2, fraction = 2) BigDecimal serviceFeePercent,
             Long version) {
 
         HotelDetails toDetails() {
@@ -45,7 +53,9 @@ public final class HotelDtos {
                     timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone,
                     checkInTime == null ? DEFAULT_CHECK_IN : checkInTime,
                     checkOutTime == null ? DEFAULT_CHECK_OUT : checkOutTime,
-                    cancellationPolicy);
+                    cancellationPolicy,
+                    taxRatePercent == null ? DEFAULT_TAX_RATE : taxRatePercent,
+                    serviceFeePercent == null ? DEFAULT_SERVICE_FEE : serviceFeePercent);
         }
     }
 
@@ -70,7 +80,8 @@ public final class HotelDtos {
                                       String countryCode, Short starRating, String timeZone,
                                       @JsonFormat(pattern = "HH:mm") LocalTime checkInTime,
                                       @JsonFormat(pattern = "HH:mm") LocalTime checkOutTime,
-                                      String cancellationPolicy, BigDecimal avgRating, int reviewCount,
+                                      String cancellationPolicy, BigDecimal taxRatePercent,
+                                      BigDecimal serviceFeePercent, BigDecimal avgRating, int reviewCount,
                                       List<ImageResponse> images, List<AmenityRef> amenities,
                                       List<RoomTypeResponse> roomTypes) {
     }
@@ -80,7 +91,8 @@ public final class HotelDtos {
                                        String countryCode, Short starRating, String timeZone,
                                        @JsonFormat(pattern = "HH:mm") LocalTime checkInTime,
                                        @JsonFormat(pattern = "HH:mm") LocalTime checkOutTime,
-                                       String cancellationPolicy, BigDecimal avgRating, int reviewCount,
+                                       String cancellationPolicy, BigDecimal taxRatePercent,
+                                       BigDecimal serviceFeePercent, BigDecimal avgRating, int reviewCount,
                                        List<ImageResponse> images, List<AmenityRef> amenities,
                                        List<RoomTypeResponse> roomTypes, HotelStatus status, Instant approvedAt,
                                        List<UUID> managerIds, long version) {

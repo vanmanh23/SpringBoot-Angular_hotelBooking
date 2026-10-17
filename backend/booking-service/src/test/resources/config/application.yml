@@ -1,0 +1,6 @@
+# Merged on top of the main application.yml for tests only.
+booking:
+  jobs:
+    enabled: false        # tests drive BookingLifecycleJob directly with a controllable clock
+  hotel-service:
+    url: http://localhost:1   # never called: FakeHotelCatalog replaces the HTTP client in service tests

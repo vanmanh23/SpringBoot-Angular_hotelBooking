@@ -66,6 +66,8 @@ class HotelManagementIntegrationTest {
             assertThat(body.get("status").asText()).isEqualTo("DRAFT");
             assertThat(body.get("timeZone").asText()).isEqualTo("Asia/Ho_Chi_Minh");
             assertThat(body.get("checkInTime").asText()).isEqualTo("14:00");
+            assertThat(body.get("taxRatePercent").decimalValue()).isEqualByComparingTo("8");
+            assertThat(body.get("serviceFeePercent").decimalValue()).isEqualByComparingTo("5");
             assertThat(body.get("managerIds").toString()).contains(api.managerId.toString());
 
             assertThat(api.get("/api/v1/hotels/" + id).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
