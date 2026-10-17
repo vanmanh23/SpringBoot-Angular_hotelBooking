@@ -20,12 +20,22 @@ Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
 | M1-4 Bootstrap admin from env | Completed | E2E admin login; log line "Bootstrap administrator account created" | — |
 | M1-5 Angular auth (pages, interceptor, guards) | Completed | `ng test` 25/25 PASS; `ng build` PASS | — |
 | M1-6 Correlation ID + no secrets in logs | Completed | `GatewayRoutingTest` 17/17 PASS; log scan 0 hits | Structured JSON logs (M8) |
-| M2 Hotels & search | Not Started | — | Needs P-08, P-09 |
+| M2-1 Hotel catalogue schema (V1) | Completed | Flyway V1 applied in hotel_db (stack); CHECKs exercised by tests | — |
+| M2-2 Hotel/room/amenity/image management API + ownership | Completed | `HotelManagementIntegrationTest` 19/19; E2E ownership checks | Management UI (M5/M6, D-017) |
+| M2-3 Public search/detail/room types | Completed | `HotelSearchIntegrationTest` 22/22; E2E 8 search checks | pg_trgm if needed (M7) |
+| M2-4 Angular home/search/detail on real API | Completed | `ng test` 37/37; `ng build` PASS | Browser/responsive check (M6) |
+| M2-5 Demo seed script | Completed | `scripts/seed-demo-data.py` run twice (second run skips everything) | — |
 | M3 Booking | Not Started | — | Needs P-01..P-04 |
 | M4 Payment | Not Started | — | Needs P-05, P-06 |
 | M5–M8 | Not Started | — | — |
 
 ## Session log
+### 2026-10-17 — Session 3 (M2)
+- The owner accepted P-08/P-09 → D-013/D-014. Branch `feat/m2-hotels`, started from `feat/m1-auth`.
+- Backend 132/132, frontend 37/37, stack E2E 19/19 PASS.
+- Fixed during verification: a seeded amenity code with digits violated our own CHECK (pattern widened consistently in SQL, DTO, search and contract; V1 was not applied anywhere yet); a Java text block dropped the space before `AND` in the amenity filter (500, fixed and covered by tests); the seed script crashed printing Vietnamese on a cp1252 console.
+- Open: real availability (booked units) arrives with M3; management UI deferred (D-017); UI not yet checked in a real browser.
+
 ### 2026-10-16 — Session 2 (M1)
 - The owner accepted P-07, recorded as D-009. Branch `feat/m1-auth`, started from `feat/m0-foundation`.
 - Backend 71/71 tests, frontend 25/25 tests, stack E2E 22/22 checks PASS.

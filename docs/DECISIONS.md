@@ -69,6 +69,27 @@ Source of truth order: confirmed business requirements & security rules → runn
 ### D-012 — Admin safety rules
 - **Decision:** Admins cannot change their own status or roles (`409 CANNOT_MODIFY_SELF`), which also guarantees the last admin can never be demoted. Every status or role change writes an `audit_logs` row (BR-32). The first admin comes only from `ADMIN_EMAIL`/`ADMIN_PASSWORD` at start-up; there is no default credential.
 
+### D-013 — Hotel managers are assigned per hotel (was P-08; owner approved the default on 2026-10-17)
+- **Decision:** A `hotel_managers(hotel_id, user_id, assigned_by, assigned_at)` table in hotel_db. A HOTEL_MANAGER can manage a hotel only if the token carries the role **and** an assignment row exists. ADMIN manages every hotel. A manager who creates a hotel is assigned to it automatically; ADMIN assigns or unassigns other managers.
+- **Rationale:** BR-30 and anti-IDOR at the resource level. hotel-service does not call auth-service to check the user: an assignment gives no power until the user also has the role. This avoids a synchronous dependency between the services.
+- **Impact:** An unknown hotel → 404; a hotel that is not yours → 403 (`HotelAccessPolicy`).
+
+### D-014 — Business time zone (was P-09; owner approved the default on 2026-10-17)
+- **Decision:** Every hotel stores an IANA `time_zone` (default `Asia/Ho_Chi_Minh`), plus `check_in_time`/`check_out_time` as local `TIME`. Stay dates are hotel-local `DATE`s; instants are UTC `TIMESTAMPTZ`.
+- **Search nuance:** Search spans many hotels, so `checkIn` is accepted down to "yesterday in UTC". That way a hotel's local "today" is never rejected. Booking (M3) will validate against the specific hotel's zone.
+
+### D-015 — Inventory unit on the hotel side is the room type
+- **Decision:** hotel-service models `room_types.total_units` and does **not** model physical rooms (design §4.4.4 is optional). This matches the P-01 default (count-based inventory); the booking-side inventory table is decided in M3.
+- **Rationale:** The design warns against two independent sources of counts. One number per room type is the single source.
+
+### D-016 — Search implemented in SQL with normalized keys
+- **Decision:** The public search is one `NamedParameterJdbcTemplate` query (+ count + one batched amenity query). Dynamic parts are fixed SQL fragments and every value is a bound parameter. City and name are matched through `city_key`/`name_key` columns that the application fills with lower-case, diacritics-free text, so "da nang" matches "Đà Nẵng" and a partial index serves `city_key` for ACTIVE hotels.
+- **Alternatives rejected:** JPA Criteria (awkward aggregate + `HAVING` for "all amenities"); the PostgreSQL `unaccent()` extension (not IMMUTABLE, so it cannot be indexed directly).
+- **Limit:** `q` (free text) uses `LIKE '%…%'`, which has no index. Add `pg_trgm` in M7 if measurements show it is needed.
+
+### D-017 — Hotel management UI deferred
+- **Decision:** In M2 the Angular app covers the **public** flows (home search, results, detail). Hotel/room management for managers and admins is available through the API (verified by tests and E2E) and gets its UI in M5/M6 together with the other admin screens.
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)
@@ -81,5 +102,3 @@ Source of truth order: confirmed business requirements & security rules → runn
 | P-04 | Cancellation and refund policy | Free cancel until 48 h before check-in (local hotel time); after that, no refund. A refund is a separate record (`REFUND_PENDING` → `REFUNDED`). | M3/M4 |
 | P-05 | Payment gateway | No merchant account is available, so build a **sandbox provider** inside payment-service with HMAC-SHA256 signed webhooks (same shape as VNPay/Stripe). A real gateway needs credentials from the owner. | M4 |
 | P-06 | Late payment (succeeds after the booking EXPIRED) | Never auto-confirm: if inventory is still free, re-reserve and confirm; otherwise refund automatically and flag it for review | M4 |
-| P-08 | How a Hotel Manager is linked to hotels | `hotel_managers(hotel_id, user_id)` in hotel_db, assigned by an Admin | M2/M5 |
-| P-09 | Business time zone | Stay dates are hotel-local `DATE`s; timestamps are UTC `TIMESTAMPTZ`; each hotel stores an IANA zone (default `Asia/Ho_Chi_Minh`) | M2/M3 |

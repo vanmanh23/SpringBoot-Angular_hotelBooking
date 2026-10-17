@@ -35,7 +35,7 @@ Evidence: `GatewayRoutingTest` (13 cases PASS); runtime curl smoke recorded in `
 |--------------|-------------------------|
 | `/api/v1/hotels/{id}/reviews[/**]` | review-service (8085), matched before the hotel route |
 | `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/admin/users[/**]` | auth-service (8081) |
-| `/api/v1/hotels[/**]`, `/api/v1/room-types/**`, `/api/v1/amenities[/**]` | hotel-service (8082) |
+| `/api/v1/hotels[/**]`, `/api/v1/room-types/**`, `/api/v1/amenities[/**]`, `/api/v1/manage/hotels[/**]` | hotel-service (8082) |
 | `/api/v1/bookings[/**]` | booking-service (8083) |
 | `/api/v1/payments[/**]` | payment-service (8084) |
 | `/api/v1/reviews[/**]` | review-service (8085) |
@@ -80,7 +80,8 @@ Validation: email in RFC format, ≤ 255 characters, normalized with trim and lo
 Password hashing: BCrypt (strength 12). A dummy hash comparison runs for unknown emails so response timing does not reveal which accounts exist.
 `Page<T>` = `{content, page, size, totalElements, totalPages}`.
 
-## M2 — Hotels, room types, amenities, search (contract agreed before implementation)
+## M2 — Hotels, room types, amenities, search — **Implemented & verified**
+Evidence: `HotelManagementIntegrationTest` (19), `HotelSearchIntegrationTest` (22), `DomainRulesTest` (16), `GatewayRoutingTest`, stack E2E 19/19 (`PROJECT_AUDIT.md` §7).
 
 Hotel status machine:
 - `DRAFT` → `ACTIVE`: ADMIN only (approval). Sets `approvedAt`.
@@ -102,7 +103,7 @@ Times: `checkInTime`/`checkOutTime` are `HH:mm` local to the hotel; `timeZone` i
 
 `HotelSummary` = `{id, name, city, address, countryCode, starRating|null, avgRating|null, reviewCount, thumbnailUrl|null, fromPrice, currency, amenities: [code]}`
 `HotelDetail` = `{id, name, description|null, address, city, countryCode, starRating|null, timeZone, checkInTime, checkOutTime, cancellationPolicy|null, avgRating|null, reviewCount, images: [{id, url, caption|null}], amenities: [{code, name}], roomTypes: [RoomType]}`
-`RoomType` = `{id, hotelId, name, description|null, capacity, bedDescription|null, basePrice, currency, totalUnits, status, amenities: [{code, name}]}`
+`RoomType` = `{id, hotelId, name, description|null, capacity, bedDescription|null, basePrice, currency, totalUnits, status, amenities: [{code, name}], version}`
 `ManagedHotel` = `HotelDetail` + `{status, approvedAt|null, managerIds: [uuid], version}`; room types of every status are included.
 
 ### Public
@@ -119,7 +120,7 @@ Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà N�
 ### Management (bearer token)
 | Method | Path | Who | Body | Success | Errors |
 |--------|------|-----|------|---------|--------|
-| GET | `/api/v1/manage/hotels?status&q&page&size` | ADMIN (all) / MANAGER (own) | — | 200 `Page<ManagedHotelSummary>` (`HotelSummary` + `status`) | 401, 403 |
+| GET | `/api/v1/manage/hotels?status&q&page&size` | ADMIN (all) / MANAGER (own) | — | 200 `Page<{id, name, city, countryCode, starRating, status, approvedAt, version}>` | 401, 403 |
 | GET | `/api/v1/manage/hotels/{id}` | ADMIN / assigned MANAGER | — | 200 `ManagedHotel` | 403, 404 |
 | POST | `/api/v1/hotels` | ADMIN / MANAGER | `HotelRequest` | 201 `ManagedHotel` (status `DRAFT`) | 400, 403 |
 | PUT | `/api/v1/hotels/{id}` | ADMIN / assigned MANAGER | `HotelRequest` + `version` | 200 `ManagedHotel` | 400, 403, 404, 409 `CONCURRENT_MODIFICATION` |
@@ -141,11 +142,7 @@ Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà N�
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|
-| Hotels | GET | `/api/v1/hotels` (search, paginated) | none | M2 |
-| Hotels | GET | `/api/v1/hotels/{hotelId}` | none | M2 |
-| Hotels | GET | `/api/v1/hotels/{hotelId}/room-types` | none | M2 |
-| Hotels | GET | `/api/v1/hotels/{hotelId}/availability` | none | M2/M3 |
-| Hotels | POST/PUT | `/api/v1/hotels[/{hotelId}]` | ADMIN / assigned MANAGER | M2 |
+| Hotels | GET | `/api/v1/hotels/{hotelId}/availability` (real availability from booking data) | none | M3 |
 | Bookings | POST | `/api/v1/bookings` | CUSTOMER + Idempotency-Key | M3 |
 | Bookings | GET | `/api/v1/bookings/me` | bearer | M3 |
 | Bookings | GET | `/api/v1/bookings/{bookingId}` | owner / manager / admin | M3 |
@@ -161,4 +158,5 @@ Text matching ignores case and Vietnamese diacritics ("da nang" matches "Đà N�
 - `/api/v1` prefix added (D-003).
 - Refresh token travels in an HttpOnly cookie instead of the body (D-009).
 - Password change (`PUT /users/me/password`) and admin user management (`/admin/users`) are additions not listed in design §6.7.1 (they cover FR-AUTH-05 and FR-ADMIN-01).
+- Management reads live under `/api/v1/manage/hotels` so that public and management views never share a response shape.
 - Webhook path fixed as `/api/v1/payments/webhooks/{provider}` (design: "path configured by backend").

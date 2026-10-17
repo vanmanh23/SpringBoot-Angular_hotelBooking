@@ -2,7 +2,7 @@
 
 Microservices hotel booking platform: Java 17 / Spring Boot 3.5, Spring Cloud Gateway, PostgreSQL 17, Kafka, Angular 21, Docker Compose.
 
-> **Status:** Milestones M0 (foundation) and M1 (authentication & authorization) are complete. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
+> **Status:** Milestones M0 (foundation), M1 (authentication & authorization) and M2 (hotel catalogue & search) are complete. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
 
 ## Architecture
 ```
@@ -36,6 +36,11 @@ echo "AUTH_JWT_PRIVATE_KEY=$(scripts/generate-jwt-key.sh)" >> .env   # or paste 
 docker compose up -d --build --wait
 # Frontend: http://localhost:4200   Gateway: http://localhost:8080
 docker compose down          # keeps data volumes
+```
+
+Demo data (optional; ADMIN_EMAIL/ADMIN_PASSWORD must have been set before the first start):
+```bash
+python scripts/seed-demo-data.py --admin-email <ADMIN_EMAIL> --admin-password <ADMIN_PASSWORD>
 ```
 
 ## Develop locally

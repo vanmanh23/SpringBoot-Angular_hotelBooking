@@ -80,3 +80,13 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | Secrets in logs | grep compose logs for the test password, `eyJ…` JWTs, `SH_REFRESH=` values and the admin password | **PASS**: 0 matches |
 | Frontend lint | — | **N/A**: no linter yet (M6) |
 
+## 7. M2 verification (2026-10-17)
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend | `cd backend && mvn -B clean verify` | **PASS**: BUILD SUCCESS, 2:42 min, 132 tests (hotel 61, gateway 21, auth 30, common 4, other services 4 each) |
+| Frontend | `npx ng build`; `npx ng test --watch=false` | **PASS**: build OK (initial 273 kB / 75 kB transfer); 37/37 tests |
+| Stack | `docker compose up -d --build --wait` | **PASS**: 10/10 healthy; hotel_db Flyway V1 applied |
+| Demo data | `python scripts/seed-demo-data.py ...`, run twice | **PASS**: 5 hotels created; the second run skipped all of them |
+| E2E | `m2_e2e.py` through `:4200` | **PASS**: 19/19 (accent-insensitive search, filters, sort, pagination, 400 on bad dates, detail, room-type fit, 401/403 on writes, draft hidden, no self-approval, cross-manager IDOR blocked, approval makes the hotel public, optimistic lock 409, hide) |
+| Real browser / responsive | — | **NOT RUN**: planned for M6 |
+| Search performance (EXPLAIN / load) | — | **NOT RUN**: dataset too small to be meaningful; M7 |
