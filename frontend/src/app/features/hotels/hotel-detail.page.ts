@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { BehaviorSubject, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
+import { AuthService } from '../../core/auth/auth.service';
+import { BookingApi } from '../../core/bookings/booking-api';
 import { HotelApi } from '../../core/hotels/hotel-api';
 import { HotelDetail, RoomType } from '../../core/hotels/hotel.models';
 import { toQueryParams } from '../../core/hotels/search-query';
@@ -12,7 +14,7 @@ import { SearchForm } from './search-form';
 
 type DetailState =
   | { status: 'loading' }
-  | { status: 'loaded'; hotel: HotelDetail; suitable: RoomType[] | null }
+  | { status: 'loaded'; hotel: HotelDetail; suitable: RoomType[] | null; available: Map<string, number> | null }
   | { status: 'error'; error: ApiError };
 
 @Component({
@@ -107,9 +109,18 @@ type DetailState =
                 <div class="room-price">
                   <strong>{{ room.basePrice | vnd }}</strong>
                   <span class="muted">per room / night</span>
-                  <button class="btn btn-primary" type="button" disabled title="Online booking opens in the next release">
-                    Booking coming soon
-                  </button>
+                  @if (!hasDates()) {
+                    <button class="btn btn-secondary" type="button" disabled>Choose dates to book</button>
+                  } @else if (unitsLeft(room.id) !== null && unitsLeft(room.id)! < roomCount()) {
+                    <span class="sold-out" role="status">Sold out for these dates</span>
+                  } @else {
+                    @if (unitsLeft(room.id); as left) {
+                      @if (left <= 3) { <span class="few-left">Only {{ left }} left</span> }
+                    }
+                    <button class="btn btn-primary" type="button" (click)="reserve(room.id)">
+                      Reserve {{ roomCount() > 1 ? roomCount() + ' rooms' : '' }}
+                    </button>
+                  }
                 </div>
               </article>
             } @empty {
@@ -118,7 +129,10 @@ type DetailState =
                 <p class="muted">Try more rooms or fewer guests.</p>
               </div>
             }
-            <p class="muted note">Prices shown are base rates before taxes and fees; the final amount is calculated when you book.</p>
+            <p class="muted note">
+              Prices are base rates per night. A {{ h.serviceFeePercent }}% service fee and {{ h.taxRatePercent }}% VAT are added;
+              the final amount is calculated by our system when you book. Availability is indicative until your booking is created.
+            </p>
           </section>
         }
       }
@@ -144,10 +158,14 @@ type DetailState =
     .room-price strong { font-size: 1.2rem; }
     .empty { text-align: center; }
     .note { font-size: 0.85rem; }
+    .sold-out { color: var(--color-danger); font-weight: 600; }
+    .few-left { color: var(--color-danger); font-size: 0.875rem; }
   `,
 })
 export class HotelDetailPage {
   private readonly api = inject(HotelApi);
+  private readonly bookings = inject(BookingApi);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly retry$ = new BehaviorSubject<void>(undefined);
 
@@ -181,11 +199,17 @@ export class HotelDetailPage {
       switchMap(([id, stay]) =>
         this.api.detail(id).pipe(
           switchMap((hotel) =>
-            stay.guests || stay.rooms
-              ? this.api.roomTypes(id, stay.guests ?? 1, stay.rooms ?? 1).pipe(map((suitable) => ({ hotel, suitable })))
-              : of({ hotel, suitable: null }),
+            combineLatest([
+              stay.guests || stay.rooms ? this.api.roomTypes(id, stay.guests ?? 1, stay.rooms ?? 1) : of(null),
+              stay.checkIn && stay.checkOut
+                ? this.bookings.availability(id, stay.checkIn, stay.checkOut).pipe(
+                    map((a) => new Map(a.roomTypes.map((r) => [r.roomTypeId, r.availableUnits]))),
+                    catchError(() => of(null)), // advisory only: never block the page on it
+                  )
+                : of(null),
+            ]).pipe(map(([suitable, available]) => ({ hotel, suitable, available }))),
           ),
-          map(({ hotel, suitable }): DetailState => ({ status: 'loaded', hotel, suitable })),
+          map(({ hotel, suitable, available }): DetailState => ({ status: 'loaded', hotel, suitable, available })),
           catchError((err) => of<DetailState>({ status: 'error', error: toApiError(err) })),
           startWith<DetailState>({ status: 'loading' }),
         ),
@@ -215,6 +239,28 @@ export class HotelDetailPage {
     const s = this.state();
     return s.status === 'error' ? s.error.message : '';
   });
+
+  protected readonly hasDates = computed(() => !!(this.stay().checkIn && this.stay().checkOut));
+  protected readonly roomCount = computed(() => this.stay().rooms ?? 1);
+
+  unitsLeft(roomTypeId: string): number | null {
+    const s = this.state();
+    return s.status === 'loaded' && s.available ? (s.available.get(roomTypeId) ?? 0) : null;
+  }
+
+  /** Goes to checkout; anonymous users sign in first and come back to the same checkout URL. */
+  reserve(roomTypeId: string): void {
+    const { checkIn, checkOut, guests } = this.stay();
+    const queryParams = toQueryParams({ checkIn, checkOut, guests: guests ?? 1 });
+    const target = this.router.createUrlTree(['/booking', 'new'], {
+      queryParams: { ...queryParams, hotelId: this.id(), roomTypeId, quantity: this.roomCount() },
+    });
+    if (this.auth.isAuthenticated()) {
+      void this.router.navigateByUrl(target);
+    } else {
+      void this.router.navigate(['/login'], { queryParams: { returnUrl: this.router.serializeUrl(target) } });
+    }
+  }
 
   changeStay(stay: { checkIn?: string; checkOut?: string; guests?: number; rooms?: number }): void {
     void this.router.navigate(['/hotels', this.id()], { queryParams: toQueryParams(stay), replaceUrl: true });

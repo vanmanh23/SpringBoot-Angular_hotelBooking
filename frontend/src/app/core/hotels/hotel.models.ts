@@ -61,6 +61,8 @@ export interface HotelDetail {
   checkInTime: string;
   checkOutTime: string;
   cancellationPolicy: string | null;
+  taxRatePercent: number;
+  serviceFeePercent: number;
   avgRating: number | null;
   reviewCount: number;
   images: HotelImage[];

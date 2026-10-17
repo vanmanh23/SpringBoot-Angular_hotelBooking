@@ -12,6 +12,7 @@ import { AuthService } from '../auth/auth.service';
       <a routerLink="/" class="brand">Stay Hotel</a>
       <nav class="nav" aria-label="Account">
         @if (auth.user(); as user) {
+          <a routerLink="/my-bookings" routerLinkActive="active" class="nav-link">My bookings</a>
           <a routerLink="/profile" routerLinkActive="active" class="nav-link">{{ user.fullName }}</a>
           <button type="button" class="nav-button" (click)="logout()" [disabled]="loggingOut()">Sign out</button>
         } @else {

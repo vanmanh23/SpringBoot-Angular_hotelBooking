@@ -19,6 +19,24 @@ export const routes: Routes = [
     loadComponent: () => import('./features/hotels/hotel-detail.page').then((m) => m.HotelDetailPage),
   },
   {
+    path: 'booking/new',
+    title: 'Complete your booking · Stay Hotel',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/booking/checkout.page').then((m) => m.CheckoutPage),
+  },
+  {
+    path: 'bookings/:id',
+    title: 'Booking · Stay Hotel',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/booking/booking-detail.page').then((m) => m.BookingDetailPage),
+  },
+  {
+    path: 'my-bookings',
+    title: 'My bookings · Stay Hotel',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/booking/my-bookings.page').then((m) => m.MyBookingsPage),
+  },
+  {
     path: 'login',
     title: 'Sign in · Stay Hotel',
     canActivate: [guestGuard],
