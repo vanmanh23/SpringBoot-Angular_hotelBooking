@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +46,41 @@ public class InventoryRepository {
                 WHERE room_type_id = :roomTypeId AND stay_date >= :from AND stay_date < :to
                   AND reserved_units + :qty <= :total""", p);
         return updated == from.until(to).getDays();
+    }
+
+    /**
+     * All-or-nothing reservation of several lines without savepoints (late payments): every affected night row is
+     * locked FOR UPDATE in a fixed order, capacity is checked under those locks, and only then incremented.
+     * @return false (nothing changed) if any night of any line lacks capacity
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean reserveAllOrNothing(List<Line> lines, LocalDate from, LocalDate to) {
+        List<Line> ordered = lines.stream().sorted(Comparator.comparing(Line::roomTypeId)).toList();
+        for (Line line : ordered) {
+            jdbc.update("""
+                    INSERT INTO room_type_inventory (room_type_id, stay_date, reserved_units)
+                    SELECT :roomTypeId, d::date, 0 FROM generate_series(CAST(:from AS date), CAST(:to AS date) - 1, interval '1 day') d
+                    ON CONFLICT (room_type_id, stay_date) DO NOTHING""", params(line.roomTypeId(), from, to));
+        }
+        for (Line line : ordered) {
+            List<Integer> reserved = jdbc.queryForList("""
+                    SELECT reserved_units FROM room_type_inventory
+                    WHERE room_type_id = :roomTypeId AND stay_date >= :from AND stay_date < :to
+                    ORDER BY stay_date FOR UPDATE""", params(line.roomTypeId(), from, to), Integer.class);
+            if (reserved.stream().anyMatch(r -> r + line.quantity() > line.totalUnits())) {
+                return false;
+            }
+        }
+        for (Line line : ordered) {
+            jdbc.update("""
+                    UPDATE room_type_inventory SET reserved_units = reserved_units + :qty
+                    WHERE room_type_id = :roomTypeId AND stay_date >= :from AND stay_date < :to""",
+                    params(line.roomTypeId(), from, to).addValue("qty", line.quantity()));
+        }
+        return true;
+    }
+
+    public record Line(UUID roomTypeId, int quantity, int totalUnits) {
     }
 
     /** Gives units back (expiry, cancellation). The CHECK constraint guards against going negative. */

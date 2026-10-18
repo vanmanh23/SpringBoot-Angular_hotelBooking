@@ -78,6 +78,7 @@ class GatewayRoutingTest {
             "/api/v1/bookings/me, booking",
             "/api/v1/availability, booking",
             "/api/v1/payments/abc, payment",
+            "/sandbox-gateway/checkout/cs_1, payment",
             "/api/v1/reviews/abc, review",
             "/api/v1/notifications/me, notification"
     })

@@ -19,7 +19,8 @@ public enum BookingStatus {
             PENDING_PAYMENT, EnumSet.of(CONFIRMED, CANCELLED, EXPIRED),
             CONFIRMED, EnumSet.of(CANCELLED, COMPLETED),
             CANCELLED, EnumSet.noneOf(BookingStatus.class),
-            EXPIRED, EnumSet.noneOf(BookingStatus.class),
+            // Only the late-payment policy uses this edge, after re-reserving every night (D-024).
+            EXPIRED, EnumSet.of(CONFIRMED),
             COMPLETED, EnumSet.noneOf(BookingStatus.class));
 
     public boolean canTransitionTo(BookingStatus target) {

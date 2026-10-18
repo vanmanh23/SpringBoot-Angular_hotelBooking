@@ -126,6 +126,13 @@ public class Booking {
     @Column(name = "refund_eligible")
     private Boolean refundEligible;
 
+    @Column(name = "payment_id")
+    private UUID paymentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "refund_status", nullable = false)
+    private RefundStatus refundStatus = RefundStatus.NONE;
+
     @Column(name = "idempotency_key", nullable = false, updatable = false)
     private String idempotencyKey;
 
@@ -221,6 +228,15 @@ public class Booking {
 
     void markRefundEligibility(Boolean eligible) {
         this.refundEligible = eligible;
+    }
+
+    void linkPayment(UUID payment) {
+        this.paymentId = payment;
+    }
+
+    void updateRefundStatus(RefundStatus status, Instant now) {
+        this.refundStatus = status;
+        this.updatedAt = now;
     }
 
     /** Hotel-local check-in moment, e.g. 2026-11-10 14:00 Asia/Ho_Chi_Minh. */
@@ -363,6 +379,17 @@ public class Booking {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    public UUID getPaymentId() {
+        return paymentId;
+    }
+
+    public RefundStatus getRefundStatus() {
+        return refundStatus;
+    }
+
+    /** Refund progress as reported by payment-service (BR-26: cancelled is not the same as refunded). */
+    public enum RefundStatus { NONE, PENDING, REFUNDED, FAILED }
 
     public List<BookingRoom> getRooms() {
         return List.copyOf(rooms);

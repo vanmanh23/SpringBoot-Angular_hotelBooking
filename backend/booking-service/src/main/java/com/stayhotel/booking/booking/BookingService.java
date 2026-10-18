@@ -7,7 +7,8 @@ import com.stayhotel.booking.catalog.HotelCatalog;
 import com.stayhotel.booking.catalog.HotelSnapshot;
 import com.stayhotel.booking.inventory.InventoryRepository;
 import com.stayhotel.booking.pricing.PriceCalculator;
-import com.stayhotel.common.error.BusinessException;
+import com.stayhotel.common.messaging.OutboxWriter;
+import com.stayhotel.common.messaging.Topics;
 import com.stayhotel.common.security.CurrentUser;
 import com.stayhotel.common.web.PageResponse;
 import org.slf4j.Logger;
@@ -47,13 +48,15 @@ public class BookingService {
     private final BookingCodeGenerator codes;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate tx;
+    private final OutboxWriter outbox;
     private final Clock clock;
     private final Duration holdDuration;
 
     BookingService(BookingRepository bookings, InventoryRepository inventory, HotelCatalog catalog,
                    BookingCodeGenerator codes, ObjectMapper objectMapper, PlatformTransactionManager txManager,
-                   Clock clock, @Value("${booking.hold-duration:15m}") Duration holdDuration) {
+                   OutboxWriter outbox, Clock clock, @Value("${booking.hold-duration:15m}") Duration holdDuration) {
         this.bookings = bookings;
+        this.outbox = outbox;
         this.inventory = inventory;
         this.catalog = catalog;
         this.codes = codes;
@@ -110,6 +113,9 @@ public class BookingService {
                         throw BookingErrors.soldOut(); // rolls back the booking and any partial reservation
                     }
                 }
+                outbox.append(Topics.BOOKING_EVENTS, "BookingCreated", booking.getId(), new BookingEvents.BookingCreated(
+                        booking.getId(), booking.getHotelId(), booking.getCheckIn(), booking.getCheckOut(),
+                        booking.getTotalAmount(), booking.getCurrencyCode()));
                 return BookingDtos.BookingResponse.from(booking);
             });
             log.info("Booking {} created for hotel {} ({} nights)", created.bookingCode(), hotel.id(), nights);
@@ -159,25 +165,12 @@ public class BookingService {
                 : booking.isOwnedBy(user.id()) ? "Cancelled by customer" : "Cancelled by administrator";
         booking.transitionTo(BookingStatus.CANCELLED, why, user.id().toString(), now);
         booking.markRefundEligibility(refundEligible);
-        releaseInventory(booking);
-        return BookingDtos.BookingResponse.from(booking);
-    }
-
-    /**
-     * Confirms a hold after a VERIFIED payment (called by the payment integration in M4, never from the browser).
-     * Late payments for EXPIRED/CANCELLED bookings are rejected here and handled by the late-payment policy (P-06).
-     * noRollbackFor: an overdue hold found here is expired (units released) and that must be committed even
-     * though the confirmation itself is refused.
-     */
-    @Transactional(noRollbackFor = BusinessException.class)
-    public BookingDtos.BookingResponse confirmPaid(UUID bookingId, String paymentReference) {
-        Booking booking = bookings.findByIdForUpdate(bookingId).orElseThrow(BookingErrors::bookingNotFound);
-        Instant now = clock.instant();
-        if (booking.getStatus() == BookingStatus.PENDING_PAYMENT && !now.isBefore(booking.getExpiresAt())) {
-            expire(booking, now);
-            throw BookingErrors.invalidTransition(BookingStatus.EXPIRED, BookingStatus.CONFIRMED);
+        if (Boolean.TRUE.equals(refundEligible)) {
+            booking.updateRefundStatus(Booking.RefundStatus.PENDING, now); // payment-service performs it (BR-26)
         }
-        booking.transitionTo(BookingStatus.CONFIRMED, "Payment " + paymentReference, BookingStatusChange.SYSTEM, now);
+        releaseInventory(booking);
+        outbox.append(Topics.BOOKING_EVENTS, "BookingCancelled", booking.getId(),
+                new BookingEvents.BookingCancelled(booking.getId(), refundEligible));
         return BookingDtos.BookingResponse.from(booking);
     }
 
@@ -186,9 +179,10 @@ public class BookingService {
         booking.transitionTo(BookingStatus.EXPIRED, "Payment not received within the hold time",
                 BookingStatusChange.SYSTEM, now);
         releaseInventory(booking);
+        outbox.append(Topics.BOOKING_EVENTS, "BookingExpired", booking.getId(), new BookingEvents.BookingExpired(booking.getId()));
     }
 
-    private void releaseInventory(Booking booking) {
+    void releaseInventory(Booking booking) {
         booking.getRooms().stream()
                 .sorted((a, b) -> a.getRoomTypeId().compareTo(b.getRoomTypeId()))
                 .forEach(r -> inventory.release(r.getRoomTypeId(), booking.getCheckIn(), booking.getCheckOut(),

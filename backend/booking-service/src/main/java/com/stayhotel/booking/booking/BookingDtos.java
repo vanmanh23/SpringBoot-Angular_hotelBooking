@@ -66,8 +66,8 @@ public final class BookingDtos {
                                   BigDecimal taxAmount, BigDecimal discountAmount, BigDecimal totalAmount,
                                   String currency, String contactName, String contactEmail, String contactPhone,
                                   String specialRequests, Instant expiresAt, Instant confirmedAt, Instant cancelledAt,
-                                  String cancelReason, Boolean refundEligible, Instant freeCancellationUntil,
-                                  Instant createdAt, List<HistoryEntry> history) {
+                                  String cancelReason, Boolean refundEligible, Booking.RefundStatus refundStatus,
+                                  Instant freeCancellationUntil, Instant createdAt, List<HistoryEntry> history) {
 
         public static BookingResponse from(Booking b) {
             return new BookingResponse(b.getId(), b.getBookingCode(), b.getStatus(), b.getHotelId(), b.getHotelName(),
@@ -79,7 +79,7 @@ public final class BookingDtos {
                     vnd(b.getTaxAmount()), vnd(b.getDiscountAmount()), vnd(b.getTotalAmount()), b.getCurrencyCode(),
                     b.getContactName(), b.getContactEmail(), b.getContactPhone(), b.getSpecialRequests(),
                     b.getExpiresAt(), b.getConfirmedAt(), b.getCancelledAt(), b.getCancelReason(),
-                    b.getRefundEligible(), b.freeCancellationUntil(), b.getCreatedAt(),
+                    b.getRefundEligible(), b.getRefundStatus(), b.freeCancellationUntil(), b.getCreatedAt(),
                     b.getHistory().stream().map(h -> new HistoryEntry(h.getFromStatus(), h.getToStatus(), h.getReason(),
                             h.getActor(), h.getCreatedAt())).toList());
         }

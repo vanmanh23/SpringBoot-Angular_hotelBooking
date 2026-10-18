@@ -1,0 +1,8 @@
+# Merged on top of the main application.yml for tests only.
+payment:
+  public-base-url: http://localhost:4200
+  booking-service-url: http://localhost:1   # BookingClient is mocked in tests
+  sandbox:
+    webhook-secret: test-webhook-secret-0123456789abcdef
+    # Resolved at send time (SandboxGateway), once the random port is known.
+    webhook-url: http://localhost:${local.server.port}/api/v1/payments/webhooks/sandbox

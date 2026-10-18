@@ -6,7 +6,8 @@ import com.stayhotel.booking.BookingTestSupport.Api;
 import com.stayhotel.booking.BookingTestSupport.FakeHotelCatalog;
 import com.stayhotel.booking.BookingTestSupport.MutableClock;
 import com.stayhotel.booking.booking.BookingLifecycleJob;
-import com.stayhotel.booking.booking.BookingService;
+import com.stayhotel.booking.booking.BookingEvents;
+import com.stayhotel.booking.booking.PaymentOutcomeHandler;
 import com.stayhotel.booking.catalog.HotelSnapshot;
 import com.stayhotel.common.security.test.TestJwtDecoderConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +56,7 @@ class BookingFlowIntegrationTest {
     @Autowired
     BookingLifecycleJob job;
     @Autowired
-    BookingService bookingService;
+    PaymentOutcomeHandler payments;
 
     Api alice;
     HotelSnapshot hotel;
@@ -340,16 +341,6 @@ class BookingFlowIntegrationTest {
         }
 
         @Test
-        void latePaymentForOverdueHoldIsNotConfirmed() {
-            String id = alice.body(alice.book(request(hotel, today().plusDays(16), 1, familyRoom(hotel), 1, 1))).get("id").asText();
-            clock.advance(Duration.ofMinutes(15).plusSeconds(1)); // DB timestamps are microsecond-rounded
-
-            ResponseEntity<String> attempt = confirmVia(id);
-            assertThat(attempt.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-            assertThat(alice.body(alice.get("/api/v1/bookings/" + id)).get("status").asText()).isEqualTo("EXPIRED");
-        }
-
-        @Test
         void finishedStaysAreCompletedOnce() {
             LocalDate in = today().plusDays(2);
             String id = confirmedBooking(in);
@@ -362,18 +353,16 @@ class BookingFlowIntegrationTest {
 
         private String confirmedBooking(LocalDate in) {
             String id = alice.body(alice.book(request(hotel, in, 1, familyRoom(hotel), 1, 1))).get("id").asText();
-            assertThat(confirmVia(id).getStatusCode()).isEqualTo(HttpStatus.OK);
+            confirmVia(id);
+            assertThat(alice.body(alice.get("/api/v1/bookings/" + id)).get("status").asText()).isEqualTo("CONFIRMED");
             return id;
         }
 
-        /** Confirmation has no public endpoint (it will come from verified payments in M4); call the service. */
-        private ResponseEntity<String> confirmVia(String id) {
-            try {
-                bookingService.confirmPaid(UUID.fromString(id), "TEST-PAYMENT");
-                return ResponseEntity.ok().build();
-            } catch (com.stayhotel.common.error.BusinessException e) {
-                return ResponseEntity.status(e.getStatus()).build();
-            }
+        /** Confirmation only happens through a verified payment event (see PaymentOutcomeIntegrationTest). */
+        private void confirmVia(String id) {
+            BigDecimal total = alice.body(alice.get("/api/v1/bookings/" + id)).get("totalAmount").decimalValue();
+            payments.onPaymentSucceeded(UUID.randomUUID(),
+                    new BookingEvents.PaymentSucceeded(UUID.randomUUID(), UUID.fromString(id), total, "VND"));
         }
 
         private ResponseEntity<String> cancel(String id) {

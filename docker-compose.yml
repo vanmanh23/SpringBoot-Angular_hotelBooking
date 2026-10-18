@@ -87,6 +87,9 @@ services:
 
   booking-service:
     <<: *service-defaults
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     build: { context: ./backend, dockerfile: booking-service/Dockerfile }
     environment:
       <<: *service-env
@@ -98,12 +101,19 @@ services:
 
   payment-service:
     <<: *service-defaults
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     build: { context: ./backend, dockerfile: payment-service/Dockerfile }
     environment:
       <<: *service-env
       DB_NAME: payment_db
       DB_USERNAME: payment_user
       DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?}
+      SANDBOX_WEBHOOK_SECRET: ${SANDBOX_WEBHOOK_SECRET:?set SANDBOX_WEBHOOK_SECRET in .env}
+      SANDBOX_WEBHOOK_URL: http://payment-service:8084/api/v1/payments/webhooks/sandbox
+      BOOKING_SERVICE_URL: http://booking-service:8083
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4200}
 
   review-service:
     <<: *service-defaults

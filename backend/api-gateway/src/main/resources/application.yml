@@ -48,7 +48,7 @@ spring:
             - id: payment
               uri: ${services.payment-url}
               predicates:
-                - Path=/api/v1/payments,/api/v1/payments/**
+                - Path=/api/v1/payments,/api/v1/payments/**,/sandbox-gateway/**
             - id: review
               uri: ${services.review-url}
               predicates:
