@@ -2,8 +2,9 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { filter, finalize, interval, map, switchMap } from 'rxjs';
-import { BookingApi } from '../../core/bookings/booking-api';
+import { filter, finalize, interval, map, switchMap, take, takeWhile } from 'rxjs';
+import { BookingApi, newIdempotencyKey } from '../../core/bookings/booking-api';
+import { isTrustedCheckoutUrl, Payment, PaymentApi, REDIRECT_TO } from '../../core/payments/payment-api';
 import { Booking, STATUS_LABELS } from '../../core/bookings/booking.models';
 import { toApiError } from '../../core/http/api-error';
 import { VndPipe } from '../../shared/pipes/vnd.pipe';
@@ -30,16 +31,36 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
         <span class="badge" [attr.data-status]="b.status">{{ statusLabel() }}</span>
       </header>
 
-      @if (b.status === 'PENDING_PAYMENT') {
+      @if (verifying()) {
+        <div class="alert alert-pending" role="status">Verifying your payment with the provider… This page updates automatically.</div>
+      } @else if (b.status === 'PENDING_PAYMENT') {
         <div class="alert alert-pending" role="status">
           @if (secondsLeft() > 0) {
-            Your rooms are held for <strong>{{ countdown() }}</strong>. Online payment opens in the next release;
-            the hold is released automatically if it is not paid in time.
+            Your rooms are held for <strong>{{ countdown() }}</strong>. Complete the payment before the hold ends.
           } @else {
             The hold time has ended. Updating status…
           }
         </div>
-        <button class="btn btn-primary" type="button" disabled title="Online payment arrives in the next milestone">Pay now (coming soon)</button>
+        @if (lastPayment()?.status === 'FAILED') {
+          <p class="alert alert-error" role="alert">Your last payment attempt was declined. You can try again.</p>
+        }
+        @if (payError()) { <p class="alert alert-error" role="alert">{{ payError() }}</p> }
+        <button class="btn btn-primary" type="button" (click)="pay()" [disabled]="paying() || secondsLeft() <= 30">
+          {{ paying() ? 'Redirecting to payment…' : 'Pay ' + (b.totalAmount | vnd) }}
+        </button>
+      } @else if (paymentReturn() && b.status === 'CONFIRMED') {
+        <p class="alert alert-success" role="status">Payment received — your booking is confirmed.</p>
+      }
+
+      @if (b.refundStatus !== 'NONE') {
+        <p class="alert" [class.alert-success]="b.refundStatus === 'REFUNDED'" [class.alert-pending]="b.refundStatus === 'PENDING'"
+           [class.alert-error]="b.refundStatus === 'FAILED'" role="status">
+          @switch (b.refundStatus) {
+            @case ('PENDING') { A refund of {{ b.totalAmount | vnd }} is being processed. }
+            @case ('REFUNDED') { {{ b.totalAmount | vnd }} has been refunded to your payment method. }
+            @case ('FAILED') { The refund could not be completed automatically. Our team has been notified and will contact you. }
+          }
+        </p>
       }
 
       <div class="grid">
@@ -124,9 +145,13 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
 })
 export class BookingDetailPage implements OnInit {
   private readonly api = inject(BookingApi);
+  private readonly payments = inject(PaymentApi);
+  private readonly redirect = inject(REDIRECT_TO);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
+  /** `?payment=return` when the provider sends the customer back. Never trusted as proof of payment. */
+  readonly payment = input<string | undefined>();
 
   protected readonly booking = signal<Booking | null>(null);
   protected readonly loading = signal(true);
@@ -155,8 +180,56 @@ export class BookingDetailPage implements OnInit {
     return !!b && (b.status === 'PENDING_PAYMENT' || b.status === 'CONFIRMED');
   });
 
+  protected readonly paying = signal(false);
+  protected readonly payError = signal<string | null>(null);
+  protected readonly lastPayment = signal<Payment | null>(null);
+  protected readonly paymentReturn = computed(() => this.payment() === 'return');
+  private readonly returnedAt = Date.now();
+  /** After returning from the provider, wait (up to 60 s) for the webhook → Kafka → booking confirmation. */
+  protected readonly verifying = computed(() => {
+    const b = this.booking();
+    return this.paymentReturn() && b?.status === 'PENDING_PAYMENT' && this.lastPayment()?.status !== 'FAILED'
+      && this.now() - this.returnedAt < 60_000;
+  });
+
+  pay(): void {
+    if (this.paying()) return;
+    this.paying.set(true);
+    this.payError.set(null);
+    this.payments.start(this.id(), newIdempotencyKey()).subscribe({
+      next: (p) => {
+        if (isTrustedCheckoutUrl(p.checkoutUrl)) {
+          this.redirect(p.checkoutUrl);
+        } else {
+          this.paying.set(false);
+          this.payError.set('The payment page could not be opened. Please try again.');
+        }
+      },
+      error: (err) => {
+        this.paying.set(false);
+        const e = toApiError(err);
+        this.payError.set(e.code === 'BOOKING_NOT_PAYABLE' ? 'This booking can no longer be paid.' : e.message);
+        if (e.code === 'BOOKING_NOT_PAYABLE' || e.code === 'PAYMENT_IN_PROGRESS') this.load();
+      },
+    });
+  }
+
   ngOnInit(): void {
     this.load();
+    this.loadPayments();
+    if (this.paymentReturn()) {
+      // Fast polling right after the redirect; the normal 10 s poll below continues afterwards.
+      interval(2_000)
+        .pipe(
+          take(30),
+          takeWhile(() => this.booking()?.status !== 'CONFIRMED' && this.lastPayment()?.status !== 'FAILED'),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(() => {
+          this.load();
+          this.loadPayments();
+        });
+    }
     // While a hold is pending, poll the authoritative status so expiry/confirmation show up without a reload.
     interval(10_000)
       .pipe(
@@ -180,6 +253,10 @@ export class BookingDetailPage implements OnInit {
           this.loadError.set(e.status === 404 ? 'Booking not found.' : e.message);
         },
       });
+  }
+
+  private loadPayments(): void {
+    this.payments.forBooking(this.id()).subscribe({ next: (list) => this.lastPayment.set(list[0] ?? null), error: () => undefined });
   }
 
   cancel(reason: string): void {

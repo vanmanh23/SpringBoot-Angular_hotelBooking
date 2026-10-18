@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { Booking } from '../../core/bookings/booking.models';
+import { REDIRECT_TO } from '../../core/payments/payment-api';
 import { BookingDetailPage } from './booking-detail.page';
 
 const booking = (overrides: Partial<Booking> = {}): Booking => ({
@@ -37,6 +38,7 @@ const booking = (overrides: Partial<Booking> = {}): Booking => ({
   cancelledAt: null,
   cancelReason: null,
   refundEligible: null,
+  refundStatus: 'NONE',
   freeCancellationUntil: '2030-01-08T07:00:00Z',
   createdAt: new Date().toISOString(),
   history: [{ fromStatus: null, toStatus: 'PENDING_PAYMENT', reason: 'Booking created', actor: 'u1', at: new Date().toISOString() }],
@@ -46,13 +48,16 @@ const booking = (overrides: Partial<Booking> = {}): Booking => ({
 describe('BookingDetailPage', () => {
   let backend: HttpTestingController;
   let harness: RouterTestingHarness;
+  const redirect = vi.fn();
 
   beforeEach(async () => {
+    redirect.mockReset();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: 'bookings/:id', component: BookingDetailPage }], withComponentInputBinding()),
         provideHttpClient(),
         provideHttpClientTesting(),
+        { provide: REDIRECT_TO, useValue: redirect },
       ],
     });
     backend = TestBed.inject(HttpTestingController);
@@ -62,23 +67,59 @@ describe('BookingDetailPage', () => {
   afterEach(() => backend.verify());
 
   const el = () => harness.routeNativeElement as HTMLElement;
+  const open = async (url: string, b: Booking, payments: unknown[] = []) => {
+    await harness.navigateByUrl(url);
+    backend.expectOne('/api/v1/bookings/b1').flush(b);
+    backend.expectOne('/api/v1/payments/booking/b1').flush(payments);
+    harness.detectChanges();
+  };
   const button = (text: string) => [...el().querySelectorAll('button')].find((b) => b.textContent?.includes(text))!;
 
   it('shows the hold countdown and the backend price breakdown for a pending booking', async () => {
-    await harness.navigateByUrl('/bookings/b1');
-    backend.expectOne('/api/v1/bookings/b1').flush(booking());
-    harness.detectChanges();
+    await open('/bookings/b1', booking());
 
     expect(el().textContent).toContain('Awaiting payment');
     expect(el().textContent).toMatch(/held for\s+(9|10):\d{2}/);
     expect(el().textContent).toMatch(/2\.268\.000\s?₫/);
-    expect(button('Pay now').disabled).toBe(true);
+    expect(button('Pay').disabled).toBe(false);
+  });
+
+  it('starts a payment with an idempotency key and follows the same-origin checkout URL', async () => {
+    await open('/bookings/b1', booking());
+    button('Pay').click();
+    const req = backend.expectOne('/api/v1/payments');
+    expect(req.request.body).toEqual({ bookingId: 'b1' });
+    expect(req.request.headers.get('Idempotency-Key')).toBeTruthy();
+    const checkout = `${window.location.origin}/sandbox-gateway/checkout/cs_${'a'.repeat(24)}`;
+    req.flush({ id: 'p1', status: 'PENDING', checkoutUrl: checkout });
+    expect(redirect).toHaveBeenCalledWith(checkout);
+    harness.detectChanges();
+    expect(button('Redirecting').disabled).toBe(true); // stays locked while the browser leaves
+  });
+
+  it('refuses to follow a checkout URL outside our origin', async () => {
+    await open('/bookings/b1', booking());
+    button('Pay').click();
+    backend.expectOne('/api/v1/payments').flush({ id: 'p2', status: 'PENDING', checkoutUrl: 'https://evil.example/pay' });
+    harness.detectChanges();
+    expect(redirect).not.toHaveBeenCalled();
+    expect(el().textContent).toContain('could not be opened');
+  });
+
+  it('after returning from the provider it waits for the backend instead of trusting the redirect', async () => {
+    await open('/bookings/b1?payment=return', booking());
+    expect(el().textContent).toContain('Verifying your payment');
+    expect(el().textContent).not.toContain('confirmed');
+  });
+
+  it('shows refund progress reported by the backend', async () => {
+    await open('/bookings/b1', booking({ status: 'CANCELLED', expiresAt: null, refundEligible: true, refundStatus: 'PENDING' }));
+    expect(el().textContent).toContain('refund of');
+    expect(el().textContent).toContain('is being processed');
   });
 
   it('cancels only after confirmation and shows the updated status', async () => {
-    await harness.navigateByUrl('/bookings/b1');
-    backend.expectOne('/api/v1/bookings/b1').flush(booking({ status: 'CONFIRMED', expiresAt: null }));
-    harness.detectChanges();
+    await open('/bookings/b1', booking({ status: 'CONFIRMED', expiresAt: null }));
 
     button('Cancel booking').click();
     harness.detectChanges();
@@ -95,9 +136,7 @@ describe('BookingDetailPage', () => {
   });
 
   it('reloads the booking when a cancel races with another status change', async () => {
-    await harness.navigateByUrl('/bookings/b1');
-    backend.expectOne('/api/v1/bookings/b1').flush(booking());
-    harness.detectChanges();
+    await open('/bookings/b1', booking());
     button('Cancel booking').click();
     harness.detectChanges();
     button('Yes, cancel booking').click();

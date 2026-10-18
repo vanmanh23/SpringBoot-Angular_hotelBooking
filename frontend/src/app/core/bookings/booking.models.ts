@@ -85,6 +85,7 @@ export interface Booking {
   cancelledAt: string | null;
   cancelReason: string | null;
   refundEligible: boolean | null;
+  refundStatus: 'NONE' | 'PENDING' | 'REFUNDED' | 'FAILED';
   freeCancellationUntil: string;
   createdAt: string;
   history: BookingHistoryEntry[];
