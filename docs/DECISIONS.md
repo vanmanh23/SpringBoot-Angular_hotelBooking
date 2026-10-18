@@ -125,11 +125,35 @@ Source of truth order: confirmed business requirements & security rules → runn
 - **Not implemented:** individual guest names (`booking_guests`) are not collected; the booking keeps adult/child counts and one contact person. Hotel managers do not yet see the bookings of their hotels (UC-11) — that view comes in M5.
 - **Catalogue call:** booking-service calls hotel-service's **public** hotel detail with 2 s connect / 3 s read timeouts, outside any DB transaction. A failure → `503 HOTEL_SERVICE_UNAVAILABLE` and nothing is reserved. No retry and no circuit breaker yet (M7).
 
+### D-023 — Sandbox payment provider (was P-05; owner approved on 2026-10-18)
+- **Decision:** No merchant account exists, so payment-service contains an isolated **sandbox gateway** module (`sandbox_*` tables, `/sandbox-gateway/**`). It behaves like a hosted checkout: the browser is redirected to its page (plain HTML forms, no card data), and the outcome is reported **only** by a webhook signed with `v1=HMAC-SHA256(secret, timestamp.body)`. Undelivered webhooks are redelivered, and refunds are idempotent on our refund id.
+- **Why not a mock inside the domain code:** the merchant side (signature check, replay window, dedup, amount check, state machine, outbox) is exactly what a real provider integration needs. Swapping in VNPay/Stripe means a new `PaymentProvider` implementation plus a webhook adapter; the domain stays untouched.
+- **Secrets:** `SANDBOX_WEBHOOK_SECRET` (≥ 32 chars) from the environment only. It is required: the service does not start without it.
+
+### D-024 — Late payment policy (was P-06)
+- **Decision:** payment-service never decides about bookings. booking-service applies `PaymentSucceeded` under a row lock:
+  - Hold still valid → `CONFIRMED`.
+  - Hold overdue or `EXPIRED`, and check-in still ahead → re-reserve every night **all-or-nothing** (rows locked `FOR UPDATE` in a fixed order, checked, then incremented). Success → `EXPIRED → CONFIRMED` (a new state-machine edge, used only here). Otherwise → `BookingPaymentRejected(NO_AVAILABILITY)`.
+  - `CANCELLED` → reject `BOOKING_CANCELLED`; already confirmed by another payment → `ALREADY_PAID`; stay started → `STAY_STARTED`; wrong amount → `AMOUNT_MISMATCH`.
+  - A rejection → payment-service refunds automatically and sets `needsReview`; the booking shows `refundStatus`.
+- **Why no savepoint:** the first version used `PROPAGATION_NESTED`, which did not work with the JPA transaction manager (the late payment was wrongly rejected; caught by a test). The locked all-or-nothing method needs no savepoint.
+- **Evidence:** `PaymentOutcomeIntegrationTest` (late accepted; late rejected with a partially free stay → nothing reserved), stack E2E (both cases live).
+
+### D-025 — Events: transactional outbox, idempotent consumers, DLT
+- **Outbox:** events are inserted into `outbox_events` in the same DB transaction as the state change; a relay publishes them every second (`FOR UPDATE SKIP LOCKED`, ordered by an identity `seq`). The order must be deterministic because one transaction can emit two events (`BookingExpired` then `BookingConfirmed`); `created_at` ties made the order random (caught by a test).
+- **Delivery:** at-least-once. Every consumer inserts `(eventId, consumer)` into `processed_messages` in its handling transaction, so duplicates and retries are no-ops.
+- **Errors:** 3 attempts with exponential backoff, then `<topic>.DLT`. Unreadable messages go to the DLT immediately. The DLT destination is set explicitly because Spring's default suffix `-dlt` did not match our topics (caught by a test).
+- **Provisioning:** services create `payment-events`, `booking-events` and both `.DLT` topics at start-up (3 partitions); production brokers have auto-creation off. Verified on the stack broker.
+- **Keys:** booking id, so all events of one booking keep their order within a partition.
+- **Not done:** schema registry and versioned payload contracts beyond `eventVersion: 1`; consumer-lag monitoring (M8).
+
+### D-026 — Payment amount comes from booking-service via the caller's token
+- **Decision:** `POST /payments` carries only `bookingId`. payment-service reads the booking from booking-service **forwarding the caller's JWT**, so booking-service's ownership rule (404 for others) also protects payments, and the amount is the booking's own total (BR-22). There is no internal trust-me endpoint.
+- **Guards:** the hold must have more than 30 s left (so a payment cannot start seconds before expiry); one active payment per booking (partial unique index); an open checkout is resumed rather than duplicated.
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)
 
 | ID | Question | Recommended default | Blocks |
 |----|----------|---------------------|--------|
-| P-05 | Payment gateway | No merchant account is available, so build a **sandbox provider** inside payment-service with HMAC-SHA256 signed webhooks (same shape as VNPay/Stripe). A real gateway needs credentials from the owner. | M4 |
-| P-06 | Late payment (succeeds after the booking EXPIRED) | Never auto-confirm: if inventory is still free, re-reserve and confirm; otherwise refund automatically and flag it for review | M4 |

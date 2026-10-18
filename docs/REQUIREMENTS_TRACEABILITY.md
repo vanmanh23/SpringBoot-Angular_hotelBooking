@@ -3,7 +3,7 @@
 Source: `hotel-stayed-report.docx` (OBJ §1.3.2, FR §2.3, NFR §2.4, BR §2.5).
 Status values: **Not Started · In Progress · Implemented · Verified · Blocked**. "Verified" requires a passing automated test or recorded run; the evidence column names it.
 
-Last updated: 2026-10-17 (M3).
+Last updated: 2026-10-18 (M4).
 
 ## Objectives
 | ID | Objective | Milestone | Status | Evidence |
@@ -11,10 +11,10 @@ Last updated: 2026-10-17 (M3).
 | OBJ-01 | Users: register, login, profile, roles | M1 | Verified (backend + FE login/register/profile); admin UI in M5/M6 | `AuthFlowIntegrationTest`, FE specs, E2E 22/22 |
 | OBJ-02 | Search by location, dates, guests | M2 (M3 adds booked-unit availability) | Verified (advisory availability) | `HotelSearchIntegrationTest` 22, search page specs, E2E |
 | OBJ-03 | Hotel data: info, amenities, images, room types | M2 | Verified (API); management UI M5/M6 (D-017) | `HotelManagementIntegrationTest` 19, E2E |
-| OBJ-04 | Booking: create, view, track, cancel | M3 | Verified (payment confirmation in M4) | booking tests (31), FE specs, E2E 16/16 |
-| OBJ-05 | Payment integration | M4 | Not Started (P-05 pending) | |
+| OBJ-04 | Booking: create, view, track, cancel | M3/M4 | Verified | booking tests (42), FE specs, E2E M3 16/16 + M4 21/21 |
+| OBJ-05 | Payment integration | M4 | Verified with the sandbox provider (D-023); real gateway needs credentials | payment tests (30), E2E 21/21 |
 | OBJ-06 | Administration | M1/M5 | In Progress | user admin API verified (M1); hotel/booking/payment admin in M5 |
-| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 164 backend + 46 frontend tests PASS (M3), incl. concurrency |
+| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 198 backend + 57 frontend tests PASS (M4), incl. concurrency, Kafka duplicates and DLT |
 | OBJ-08 | Deployment: packaging, env config, logging | M0/M8 | In Progress | `docker-compose.yml`, `.env.example`, health checks |
 
 ## Functional requirements
@@ -44,11 +44,16 @@ Last updated: 2026-10-17 (M3).
 | FR-BOOK-05 | Cancel per policy | booking-service, FE detail | `POST /bookings/{id}/cancel` | 48 h rule tests, E2E | Verified (refund in M4) |
 | FR-BOOK-06 | State transitions | `BookingStatus`, history | `booking_status_history` | lifecycle + race tests | Verified |
 | FR-BOOK-07 | No overbooking | `InventoryRepository` | `room_type_inventory` | `BookingConcurrencyTest`, E2E race | Verified |
-| FR-PAY-01..06 | Payment, verification, idempotency, refund | payment-service | `payments`, `refunds` | — | Not Started |
+| FR-PAY-01 | Start a payment for a booking | payment-service, FE booking page | `POST /api/v1/payments` | `Checkout` tests, FE spec, E2E | Verified |
+| FR-PAY-02 | Verify provider result | `WebhookSignature`, `applyProviderEvent` | webhook endpoint | `PaymentRulesTest`, `Webhooks` tests, E2E forged/stale → 401 | Verified |
+| FR-PAY-03 | Record success/failure/pending | payment state machine + history | `payments`, `payment_status_history` | decline/pay tests | Verified |
+| FR-PAY-04 | No duplicate success | `webhook_events` PK, partial unique index | — | duplicate redelivery tests, E2E replay | Verified |
+| FR-PAY-05 | Refund | `startRefund`, `RefundSubmitter`, sandbox | `refunds` | `Refunds` tests (4), E2E refund + late refund | Verified |
+| FR-PAY-06 | Transaction history | `payment_status_history`, `GET /payments/booking/{id}` | — | flow tests | Verified (no admin UI yet) |
 | FR-ADMIN-01 | Admin user management | auth-service | `/api/v1/admin/users`; `audit_logs` | `Administration` tests (6), E2E | Verified (API); UI in M5/M6 |
 | FR-ADMIN-02 | Admin hotel moderation | hotel-service | approval/suspension, `/manage/hotels`, manager assignment | `CreationAndApproval`, assignment tests | Verified (API); UI M5/M6 |
-| FR-ADMIN-03..04 | Admin bookings, payments | booking/payment | — | — | Not Started |
-| FR-NOTI-01..02 | Booking and payment notifications | notification-service + Kafka | `notifications` | — | Not Started |
+| FR-ADMIN-03..04 | Admin bookings, payments | booking/payment | admin reads of single bookings/payments, admin refund | admin refund test | In Progress (lists/dashboards in M5) |
+| FR-NOTI-01..02 | Booking and payment notifications | notification-service + Kafka | `notifications` | — | Not Started (events already published, M5 consumes) |
 
 ## Non-functional requirements
 | ID | Area | How it is addressed | Status | Evidence |
@@ -57,7 +62,7 @@ Last updated: 2026-10-17 (M3).
 | NFR-02 | Scalability | Stateless services behind the gateway; DB per service | In Progress | architecture (M0) |
 | NFR-03 | Security | uniform errors; CORS allow-list; no secrets in repo; per-service DB roles; JWT in every service; BCrypt-12; hashed rotating refresh tokens; lockout; no secrets in logs | In Progress | M1 tests + E2E; log scan found 0 tokens/passwords |
 | NFR-04 | Consistency (no overbooking) | conditional UPDATE per night (D-018) | Verified | `BookingConcurrencyTest` 6/6 (×3 repeats), E2E 10-way race |
-| NFR-05 | Reliability | gateway timeouts (2 s connect, 10 s response); retries/outbox in M4 | In Progress | `api-gateway/application.yml` |
+| NFR-05 | Reliability | timeouts on every outbound call; outbox; at-least-once + dedup; retries/backoff + DLT; webhook redelivery; refund resubmission | In Progress (no circuit breaker yet) | M4 tests, E2E (0 dead letters) |
 | NFR-06 | Maintainability | module-per-service, common-lib limited to cross-cutting code | In Progress | repo structure |
 | NFR-07 | Testability | JUnit 5, Testcontainers (Postgres 17), Vitest | In Progress | `mvn verify` PASS |
 | NFR-08 | Observability | actuator health/readiness; `X-Correlation-Id` from gateway into every service's log MDC | In Progress | `GatewayRoutingTest` correlation cases, smoke tests |
@@ -88,12 +93,12 @@ Last updated: 2026-10-17 (M3).
 | BR-19 | payment deadline | 15-minute hold + job (live E2E with 20 s hold) | Verified |
 | BR-20 | release on expiry/cancel | `release()` in the same transaction | Verified |
 | BR-21 | idempotent create | mandatory key, per user, hash check | Verified |
-| BR-22 | payment amount from backend | payment-service | Not Started |
-| BR-23 | only verified results update state | signed webhook | Not Started |
-| BR-24 | duplicate webhook is a no-op | unique transaction ref | Not Started |
-| BR-25 | payment ≠ booking status | two state machines | Not Started |
-| BR-26 | cancel ≠ refunded | separate refund record | Not Started |
-| BR-27 | refund follows policy | P-04 | Not Started |
+| BR-22 | payment amount from backend | booking read with caller token (D-026) | Verified |
+| BR-23 | only verified results update state | HMAC + timestamp; redirect never trusted (FE) | Verified |
+| BR-24 | duplicate webhook is a no-op | `webhook_events` + state machine | Verified |
+| BR-25 | payment ≠ booking status | separate machines and services, linked by events | Verified |
+| BR-26 | cancel ≠ refunded | `refunds` + booking `refundStatus` | Verified |
+| BR-27 | refund follows policy | 48 h rule (D-021), one refund per payment, idempotent provider key | Verified |
 | BR-28 | guest: public only | deny-by-default security config in every service | Verified (no public business endpoints yet; health only) |
 | BR-29 | customer: own bookings | `loadVisible`, `/bookings/me` | Verified |
 | BR-30 | manager: assigned hotels | `HotelAccessPolicy` (D-013) | Verified (hotels, room types, images, amenities) |

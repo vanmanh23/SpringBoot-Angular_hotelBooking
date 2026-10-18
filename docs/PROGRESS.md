@@ -30,10 +30,21 @@ Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
 | M3-3 Atomic inventory + concurrency proof | Completed | `BookingConcurrencyTest` 6/6; E2E 10-way race 1×201 / 9×409 | Load test (M7) |
 | M3-4 Hold expiry + completion job | Completed | lifecycle tests; live E2E expiry with 20 s hold | — |
 | M3-5 Angular checkout, booking detail, my bookings | Completed | `ng test` 46/46; `ng build` PASS | Payment UI (M4) |
-| M4 Payment | Not Started | — | Needs P-05, P-06 |
+| M4-1 Sandbox provider + signed webhooks | Completed | `PaymentRulesTest` 14/14; webhook tests; E2E forged/stale → 401, replay → duplicate | Real gateway when credentials exist |
+| M4-2 Payment API + idempotency + no double charge | Completed | `Checkout` tests 6/6; E2E | — |
+| M4-3 Refunds (cancellation, rejected payment, admin) | Completed | `Refunds` tests 4/4; E2E refund and late refund, 1 provider refund | Admin refund UI (M5) |
+| M4-4 Outbox + Kafka + dedup + DLT + topic provisioning | Completed | `PaymentOutcomeIntegrationTest` 8/8 (real Kafka); stack topics listed; 0 dead letters in E2E | Consumer-lag metrics (M8) |
+| M4-5 Late payment policy | Completed | late accepted / rejected tests; both live in E2E | — |
+| M4-6 Angular payment flow | Completed | `ng test` 57/57 | Browser check (M6) |
 | M5–M8 | Not Started | — | — |
 
 ## Session log
+### 2026-10-18 — Session 5 (M4)
+- The owner accepted P-05/P-06 → D-023/D-024; D-025 (events), D-026 (amount via caller token). Branch `feat/m4-payment`.
+- Backend 198/198, frontend 57/57, stack E2E 21/21 PASS (one check re-run separately after fixing the script).
+- Fixed during verification: no topics provisioned at start-up / DLT suffix mismatch; outbox order not deterministic (added `seq`); nested savepoint not working with JPA (replaced by a locked all-or-nothing reservation); tests pointing at the stack broker instead of the Testcontainers one (use `KafkaConnectionDetails`); E2E hold of 20 s shorter than the 30 s pay margin.
+- Open: notification-service does not consume events yet (M5); no admin payment/booking lists yet; no circuit breaker.
+
 ### 2026-10-17 — Session 4 (M3)
 - The owner accepted P-01..P-04 with VAT 8 % / fee 5 % → D-018..D-021. Branch `feat/m3-booking`.
 - Backend 164/164, frontend 46/46, stack E2E 16/16 PASS.

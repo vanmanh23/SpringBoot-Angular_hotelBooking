@@ -2,7 +2,7 @@
 
 Microservices hotel booking platform: Java 17 / Spring Boot 3.5, Spring Cloud Gateway, PostgreSQL 17, Kafka, Angular 21, Docker Compose.
 
-> **Status:** Milestones M0 (foundation), M1 (authentication & authorization), M2 (hotel catalogue & search) and M3 (booking with concurrency-safe inventory) are complete. Payment (M4) is next. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
+> **Status:** Milestones M0 (foundation), M1 (authentication & authorization), M2 (hotel catalogue & search) M3 (booking with concurrency-safe inventory) and M4 (sandbox payments, refunds, Kafka events) are complete. Business features are being built milestone by milestone; see [`docs/PROGRESS.md`](docs/PROGRESS.md). Only endpoints in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) marked *Implemented* exist.
 
 ## Architecture
 ```

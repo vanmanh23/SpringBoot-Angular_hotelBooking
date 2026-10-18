@@ -101,3 +101,13 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | E2E | `m3_e2e.py` through `:4200` (booking → real hotel-service over the Docker network) | **PASS**: 16/16 (exact VAT/fee totals, client amount ignored, idempotent replay/reuse, 404 for others, 401 anonymous, 10-way race for the last unit → 1 × 201 / 9 × 409, cancel releases, live expiry with `BOOKING_HOLD_DURATION=20s`, inactive hotel → 422). The hold was restored to 15m afterwards. |
 | Logs | grep for JWTs/passwords and ERROR/WARN in the last 15 min | **PASS**: 0 matches |
 | Real browser | — | **NOT RUN** (M6) |
+
+## 9. M4 verification (2026-10-18)
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend | `mvn -B -f backend/pom.xml clean verify` | **PASS**: BUILD SUCCESS, 4:36 min, 198 tests (payment 30, booking 42, hotel 61, auth 30, gateway 23, common 4, others 4 each); booking and payment run against real PostgreSQL **and Kafka** (Testcontainers) |
+| Kafka behaviour | `PaymentOutcomeIntegrationTest` | **PASS**: topics + DLTs provisioned at start-up; outbox relayed; round trip PaymentSucceeded → CONFIRMED and RefundSucceeded → REFUNDED; poison message → `payment-events.DLT` |
+| Frontend | `npx ng build`; `npx ng test --watch=false` | **PASS**: 57/57 |
+| Stack | `docker compose up -d --build --wait` | **PASS**: 10/10 healthy; booking_db V1–V2, payment_db V1; broker topics: booking-events(.DLT), payment-events(.DLT) |
+| E2E | `m4_e2e.py` through `:4200` with `BOOKING_HOLD_DURATION=75s` (restored to 15m afterwards) | **PASS**: 20/21 in the scripted run plus the forged/stale/no-signature webhook checks re-run separately (all 401, nothing recorded) after correcting the script, which had sent an empty body → 21/21. Covered: checkout through the sandbox page, CSP on the provider page, webhook → outbox → Kafka → CONFIRMED, duplicate webhook no-op, no double charge, cancellation refund end to end with exactly one provider refund, decline then retry, late payment accepted, late payment without rooms → auto-refund + review flag, 0 dead letters |
+| Real browser | — | **NOT RUN** (M6) |

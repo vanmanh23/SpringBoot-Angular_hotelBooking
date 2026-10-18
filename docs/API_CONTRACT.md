@@ -37,7 +37,7 @@ Evidence: `GatewayRoutingTest` (13 cases PASS); runtime curl smoke recorded in `
 | `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/admin/users[/**]` | auth-service (8081) |
 | `/api/v1/hotels[/**]`, `/api/v1/room-types/**`, `/api/v1/amenities[/**]`, `/api/v1/manage/hotels[/**]` | hotel-service (8082) |
 | `/api/v1/bookings[/**]`, `/api/v1/availability` | booking-service (8083) |
-| `/api/v1/payments[/**]` | payment-service (8084) |
+| `/api/v1/payments[/**]`, `/sandbox-gateway/**` | payment-service (8084) |
 | `/api/v1/reviews[/**]` | review-service (8085) |
 | `/api/v1/notifications[/**]` | notification-service (8086) |
 | anything else | 404 at the gateway |
@@ -187,13 +187,67 @@ Stay rules (BR-01..05):
 Hotel-service change: `taxRatePercent` and `serviceFeePercent` (0–30, two decimals; defaults 8 and 5) are added to `HotelRequest` (optional), `HotelDetail` and `ManagedHotel`.
 Gateway change: `/api/v1/availability` → booking-service.
 
+## M4 — Payment, refund, events — **Implemented & verified**
+Evidence: `PaymentFlowIntegrationTest` (12), `PaymentRulesTest` (14), `PaymentOutcomeIntegrationTest` (8, real Kafka incl. DLT), frontend payment specs, stack E2E 21/21 (`PROJECT_AUDIT.md` §9).
+
+Owner decisions (P-05 → D-023, P-06 → D-024):
+- **Provider:** a built-in **sandbox gateway** (`/sandbox-gateway/**`, isolated module in payment-service, own table) that behaves like a hosted checkout. The browser is sent to its page; the gateway reports the outcome **only** through an HMAC-signed webhook. The browser redirect is never trusted (BR-23).
+- **Late payment:** a payment that succeeds after the booking EXPIRED is never confirmed blindly.
+  - If every night can be re-reserved and check-in is still ahead → `EXPIRED → CONFIRMED` (reason "late payment accepted").
+  - Otherwise the booking stays as it is, the payment is refunded automatically and flagged `needsReview`.
+  - The same applies to payments for CANCELLED bookings and duplicate payments.
+
+Payment state machine (BR-25; independent of the booking machine):
+- `PENDING` → `SUCCEEDED` | `FAILED` | `CANCELLED`
+- `SUCCEEDED` → `REFUND_PENDING` → `REFUNDED` | back to `SUCCEEDED` (refund failed, retry later)
+- Other transitions are rejected; a duplicate webhook is a no-op.
+- At most one active (`PENDING`/`SUCCEEDED`/`REFUND_PENDING`/`REFUNDED`) payment per booking (partial unique index): no double charge.
+
+Refund (BR-26/27):
+- Full refund only. It is a separate `refunds` row with at most one active per payment.
+- The provider call carries the refund id as idempotency key, so retries (automatic job or a repeated event) can never refund twice.
+- Triggered by a `BookingCancelled` event with `refundEligible = true`, by a `BookingPaymentRejected` event (late/duplicate payment), or by an ADMIN.
+
+Webhook security:
+- Header `X-Sandbox-Signature: v1=<hex HMAC-SHA256(secret, timestamp + "." + rawBody)>` and header `X-Sandbox-Timestamp` (epoch seconds, ±300 s).
+- Comparison is constant-time. Every event id is processed once (`webhook_events` unique). Amount and currency must match the payment.
+- Answers: bad signature or stale timestamp → `401`; duplicate → `200 {"duplicate": true}`; processed → `200`.
+
+`Payment` = `{id, bookingId, amount, currency, provider, status, checkoutUrl|null, failureReason|null, needsReview, createdAt, succeededAt|null, refund: {id, amount, status, createdAt, completedAt|null}|null}`
+
+| Method | Path | Auth | Request | Success | Errors |
+|--------|------|------|---------|---------|--------|
+| POST | `/api/v1/payments` | booking owner (bearer) + `Idempotency-Key` | `{bookingId}` | 201 `Payment` (`PENDING`, `checkoutUrl`); a replay with the same key → 200. The amount is read from booking-service with the caller's own token, so ownership is enforced there (BR-22). | 400; 404 `BOOKING_NOT_FOUND`; 409 `BOOKING_NOT_PAYABLE` (not PENDING_PAYMENT or hold expired); 409 `PAYMENT_IN_PROGRESS` (another active payment) |
+| GET | `/api/v1/payments/{id}` | owner / ADMIN | — | 200 `Payment` | 404 `PAYMENT_NOT_FOUND` |
+| GET | `/api/v1/payments/booking/{bookingId}` | owner / ADMIN | — | 200 `[Payment]` newest first | — |
+| POST | `/api/v1/payments/{id}/refund` | ADMIN | `{reason}` | 202 `Payment` (`REFUND_PENDING`) | 409 `PAYMENT_NOT_REFUNDABLE` |
+| POST | `/api/v1/payments/webhooks/sandbox` | signature | provider event `{eventId, type: payment.succeeded\|payment.failed\|refund.succeeded\|refund.failed, sessionId, merchantReference, amount, currency, occurredAt, reason?}` | 200 | 401 `INVALID_SIGNATURE` |
+| GET | `/sandbox-gateway/checkout/{sessionId}` | none (provider page) | — | 200 HTML with Pay / Decline buttons (plain form, no JavaScript) | 404 |
+| POST | `/sandbox-gateway/checkout/{sessionId}/pay` \| `/decline` | none | form | 303 → `returnUrl`; the webhook is sent before the redirect | 409 if already completed |
+
+Booking changes:
+- `Booking` gains `refundStatus` (`NONE` \| `PENDING` \| `REFUNDED` \| `FAILED`).
+- The SPA return URL is `/bookings/{id}?payment=return`; the page polls the booking status and never confirms by itself.
+
+Events (Kafka, at-least-once through a transactional outbox, keyed by bookingId; consumers are idempotent by `eventId`; 3 retries with backoff, then `<topic>.DLT`):
+- Envelope `{eventId, eventType, eventVersion: 1, occurredAt, correlationId, aggregateId, payload}` (design §5.5.3). No personal or card data in payloads.
+- `payment-events` (payment-service → booking-service):
+  - `PaymentSucceeded {paymentId, bookingId, amount, currency}`
+  - `PaymentFailed {paymentId, bookingId, reason}`
+  - `RefundRequested {paymentId, bookingId, refundId}`
+  - `RefundSucceeded {paymentId, bookingId, refundId, amount}`
+  - `RefundFailed {…}`
+- `booking-events` (booking-service → payment-service, later notification-service):
+  - `BookingCreated`, `BookingConfirmed`, `BookingExpired`
+  - `BookingCancelled {bookingId, refundEligible}`
+  - `BookingPaymentRejected {bookingId, paymentId, reason: NO_AVAILABILITY|BOOKING_CANCELLED|ALREADY_PAID|STAY_STARTED}`
+
+Gateway/nginx: `/sandbox-gateway/**` → payment-service.
+
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|
 | Bookings | GET | `/api/v1/manage/hotels/{hotelId}/bookings` (manager view, UC-11) | assigned MANAGER / ADMIN | M5 |
-| Payments | POST | `/api/v1/payments` | owner of booking | M4 |
-| Payments | GET | `/api/v1/payments/{paymentId}`, `/api/v1/payments/booking/{bookingId}` | owner / admin | M4 |
-| Payments | POST | `/api/v1/payments/webhooks/{provider}` | provider signature | M4 |
 | Reviews | GET | `/api/v1/hotels/{hotelId}/reviews` | none | M5 |
 | Reviews | POST/PUT/DELETE | `/api/v1/reviews[/{reviewId}]` | owner | M5 |
 | Notifications | GET | `/api/v1/notifications/me` | bearer | M5 |
@@ -205,4 +259,4 @@ Gateway change: `/api/v1/availability` → booking-service.
 - Management reads live under `/api/v1/manage/hotels` so that public and management views never share a response shape.
 - Availability lives at `/api/v1/availability?hotelId=…` (booking-service owns the data) instead of `/hotels/{id}/availability`.
 - Booking request uses `checkInDate`/`checkOutDate` (design §6.8.1); search keeps `checkIn`/`checkOut`.
-- Webhook path fixed as `/api/v1/payments/webhooks/{provider}` (design: "path configured by backend").
+- Webhook path is `/api/v1/payments/webhooks/sandbox` (design: "path configured by backend").
