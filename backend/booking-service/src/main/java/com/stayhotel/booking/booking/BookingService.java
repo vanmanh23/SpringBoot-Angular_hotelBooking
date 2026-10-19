@@ -114,8 +114,9 @@ public class BookingService {
                     }
                 }
                 outbox.append(Topics.BOOKING_EVENTS, "BookingCreated", booking.getId(), new BookingEvents.BookingCreated(
-                        booking.getId(), booking.getHotelId(), booking.getCheckIn(), booking.getCheckOut(),
-                        booking.getTotalAmount(), booking.getCurrencyCode()));
+                        booking.getId(), booking.getUserId(), booking.getHotelId(), booking.getHotelName(),
+                        booking.getBookingCode(), booking.getCheckIn(), booking.getCheckOut(), booking.getTotalAmount(),
+                        booking.getCurrencyCode(), booking.getContactName(), booking.getContactEmail()));
                 return BookingDtos.BookingResponse.from(booking);
             });
             log.info("Booking {} created for hotel {} ({} nights)", created.bookingCode(), hotel.id(), nights);

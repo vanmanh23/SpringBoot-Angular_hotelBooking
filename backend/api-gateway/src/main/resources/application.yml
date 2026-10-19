@@ -29,6 +29,23 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials X-Correlation-Id, RETAIN_FIRST
           # Order matters: the more specific /hotels/{id}/reviews route must precede the generic /hotels/** route.
           routes:
+            # Booking-owned views nested under manage/admin paths must precede the generic hotel/auth routes.
+            - id: manage-hotel-bookings
+              uri: ${services.booking-url}
+              predicates:
+                - Path=/api/v1/manage/hotels/*/bookings
+            - id: admin-bookings
+              uri: ${services.booking-url}
+              predicates:
+                - Path=/api/v1/admin/bookings,/api/v1/admin/bookings/**
+            - id: admin-payments
+              uri: ${services.payment-url}
+              predicates:
+                - Path=/api/v1/admin/payments,/api/v1/admin/payments/**
+            - id: admin-reviews
+              uri: ${services.review-url}
+              predicates:
+                - Path=/api/v1/admin/reviews/**
             - id: hotel-reviews
               uri: ${services.review-url}
               predicates:

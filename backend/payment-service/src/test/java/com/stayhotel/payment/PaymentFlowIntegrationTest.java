@@ -302,6 +302,14 @@ class PaymentFlowIntegrationTest {
             assertThat(after.get("status").asText()).isEqualTo("PENDING");
             assertThat(after.get("needsReview").asBoolean()).isTrue();
             assertThat(outbox(bookingId)).isEmpty();
+
+            // FR-ADMIN-04: the flagged payment shows up in the admin monitoring list, which only admins can read
+            String admin = TestJwtSupport.token(UUID.randomUUID(), "ADMIN");
+            JsonNode flagged = body(call(HttpMethod.GET, "/api/v1/admin/payments?needsReview=true&size=100", null, admin, null));
+            assertThat(flagged.get("content").findValuesAsText("id")).contains(p.get("id").asText());
+            assertThat(flagged.get("content").findValuesAsText("needsReview")).containsOnly("true");
+            assertThat(call(HttpMethod.GET, "/api/v1/admin/payments", null, token, null).getStatusCode())
+                    .isEqualTo(HttpStatus.FORBIDDEN);
         }
     }
 

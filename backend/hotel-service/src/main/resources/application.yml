@@ -28,6 +28,14 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
 
 management:
   endpoints:
@@ -43,3 +51,7 @@ management:
 logging:
   pattern:
     correlation: "[%X{correlationId:-}] "
+
+stayhotel:
+  outbox:
+    enabled: false   # consumer-only service: no outbox table

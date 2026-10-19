@@ -1,5 +1,7 @@
 package com.stayhotel.booking.booking;
 
+import com.stayhotel.common.messaging.OutboxWriter;
+import com.stayhotel.common.messaging.Topics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,11 +28,13 @@ public class BookingLifecycleJob {
 
     private final BookingRepository bookings;
     private final BookingService service;
+    private final OutboxWriter outbox;
     private final Clock clock;
 
-    BookingLifecycleJob(BookingRepository bookings, BookingService service, Clock clock) {
+    BookingLifecycleJob(BookingRepository bookings, BookingService service, OutboxWriter outbox, Clock clock) {
         this.bookings = bookings;
         this.service = service;
+        this.outbox = outbox;
         this.clock = clock;
     }
 
@@ -56,6 +60,8 @@ public class BookingLifecycleJob {
             LocalDate hotelToday = now.atZone(ZoneId.of(b.getHotelTimeZone())).toLocalDate();
             if (b.getCheckOut().isBefore(hotelToday)) {
                 b.transitionTo(BookingStatus.COMPLETED, "Stay completed", BookingStatusChange.SYSTEM, now);
+                outbox.append(Topics.BOOKING_EVENTS, "BookingCompleted", b.getId(),
+                        new BookingEvents.BookingCompleted(b.getId(), b.getUserId(), b.getHotelId(), b.getCheckOut()));
                 completed++;
             }
         }

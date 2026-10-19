@@ -5,6 +5,7 @@ public final class Topics {
 
     public static final String PAYMENT_EVENTS = "payment-events";
     public static final String BOOKING_EVENTS = "booking-events";
+    public static final String REVIEW_EVENTS = "review-events";
     public static final String DLT_SUFFIX = ".DLT";
 
     private Topics() {

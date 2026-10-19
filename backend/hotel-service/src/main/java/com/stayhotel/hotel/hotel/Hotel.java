@@ -76,10 +76,11 @@ public class Hotel {
     @Column(name = "approved_at")
     private Instant approvedAt;
 
-    @Column(name = "avg_rating")
+    /** Owned by review-service events (RatingEventsListener); never written by entity updates. */
+    @Column(name = "avg_rating", updatable = false)
     private BigDecimal avgRating;
 
-    @Column(name = "review_count", nullable = false)
+    @Column(name = "review_count", nullable = false, updatable = false)
     private int reviewCount;
 
     @ManyToMany

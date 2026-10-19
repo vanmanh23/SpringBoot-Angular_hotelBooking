@@ -51,8 +51,10 @@ public class MessagingAutoConfiguration {
         return new ProcessedMessages(jdbc, clock);
     }
 
+    /** Consumer-only services (no outbox table) set stayhotel.outbox.enabled=false. */
     @Bean
     @ConditionalOnBean(KafkaTemplate.class)
+    @ConditionalOnProperty(name = "stayhotel.outbox.enabled", havingValue = "true", matchIfMissing = true)
     OutboxPublisher outboxPublisher(JdbcTemplate jdbc, KafkaTemplate<String, String> kafka,
                                     PlatformTransactionManager txManager, Clock clock) {
         return new OutboxPublisher(jdbc, kafka, new TransactionTemplate(txManager), clock);
@@ -88,6 +90,16 @@ public class MessagingAutoConfiguration {
     @Bean
     NewTopic bookingEventsTopic() {
         return TopicBuilder.name(Topics.BOOKING_EVENTS).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic reviewEventsTopic() {
+        return TopicBuilder.name(Topics.REVIEW_EVENTS).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic reviewEventsDlt() {
+        return TopicBuilder.name(Topics.REVIEW_EVENTS + Topics.DLT_SUFFIX).partitions(3).replicas(1).build();
     }
 
     @Bean
