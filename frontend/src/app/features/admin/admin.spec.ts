@@ -48,6 +48,22 @@ describe('admin area', () => {
     expect(el.querySelectorAll('tbody tr')[1].textContent).toContain('Unlock');
   });
 
+  it('a failed load shows the error with a working retry', () => {
+    const fixture = TestBed.createComponent(AdminUsers);
+    fixture.detectChanges();
+    backend.expectOne('/api/v1/admin/users?page=0&size=20')
+      .flush({ status: 503, code: 'SERVICE_UNAVAILABLE', message: 'Service unavailable', fieldErrors: [] }, { status: 503, statusText: 'Unavailable' });
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('Service unavailable');
+
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Try again'))!.click();
+    backend.expectOne('/api/v1/admin/users?page=0&size=20').flush({ ...emptyPage, content: [user('u2')], totalElements: 1, totalPages: 1 });
+    fixture.detectChanges();
+    expect(el.querySelector('[role=alert]')).toBeNull();
+    expect(el.textContent).toContain('User u2');
+  });
+
   it('refuses to remove the last role client-side and shows the backend error otherwise', () => {
     const fixture = TestBed.createComponent(AdminUsers);
     fixture.detectChanges();

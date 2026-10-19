@@ -4,12 +4,13 @@ import { finalize } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiError, toApiError } from '../../core/http/api-error';
 import { HotelRequest, HotelStatus, ManagedHotelSummary, ManageApi } from '../../core/manage/manage-api';
+import { LoadError } from '../../shared/ui/load-error';
 import { HotelForm } from './hotel-form';
 
 /** "My hotels" for managers (only assigned hotels are returned) and every hotel for admins. */
 @Component({
   selector: 'app-manage-hotels-page',
-  imports: [RouterLink, HotelForm],
+  imports: [RouterLink, HotelForm, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="head">
@@ -38,7 +39,7 @@ import { HotelForm } from './hotel-form';
       </div>
     </div>
 
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load(page())" />
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Name</th><th>City</th><th>Stars</th><th>Status</th></tr></thead>

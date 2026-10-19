@@ -3,11 +3,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, si
 import { AuthService } from '../../core/auth/auth.service';
 import { toApiError } from '../../core/http/api-error';
 import { Review, ReviewApi } from '../../core/reviews/review-api';
+import { LoadError } from '../../shared/ui/load-error';
 
 /** Public review list of a hotel (VISIBLE reviews only). Admins can hide a review in place. */
 @Component({
   selector: 'app-hotel-reviews',
-  imports: [DatePipe],
+  imports: [DatePipe, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card reviews" aria-labelledby="reviews-title">
@@ -15,9 +16,7 @@ import { Review, ReviewApi } from '../../core/reviews/review-api';
       @if (avgRating(); as avg) {
         <p class="score"><strong>{{ avg }}</strong> / 5 · {{ reviewCount() }} {{ reviewCount() === 1 ? 'review' : 'reviews' }}</p>
       }
-      @if (error()) {
-        <p class="alert alert-error" role="alert">{{ error() }}</p>
-      }
+      <app-load-error [message]="error()" (retry)="retry()" />
       @for (r of reviews(); track r.id) {
         <article class="review">
           <header>
@@ -68,6 +67,10 @@ export class HotelReviews implements OnInit {
 
   ngOnInit(): void {
     this.load(0);
+  }
+
+  retry(): void {
+    this.load(this.reviews().length ? this.page() + 1 : 0);
   }
 
   more(): void {

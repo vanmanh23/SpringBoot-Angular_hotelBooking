@@ -4,13 +4,14 @@ import { finalize } from 'rxjs';
 import { Role, User, UserStatus } from '../../core/auth/auth.models';
 import { AuthService } from '../../core/auth/auth.service';
 import { toApiError } from '../../core/http/api-error';
+import { LoadError } from '../../shared/ui/load-error';
 import { AdminApi } from '../../core/manage/manage-api';
 
 export const ROLE_LABELS: Record<Role, string> = { CUSTOMER: 'Customer', HOTEL_MANAGER: 'Hotel manager', ADMIN: 'Admin' };
 
 @Component({
   selector: 'app-admin-users',
-  imports: [DatePipe],
+  imports: [DatePipe, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="toolbar">
@@ -20,7 +21,7 @@ export const ROLE_LABELS: Record<Role, string> = { CUSTOMER: 'Customer', HOTEL_M
           @for (s of statuses; track s) { <option [value]="s">{{ s }}</option> }</select></div>
       <button class="btn btn-secondary" type="button" (click)="apply(q.value, st.value)">Search</button>
     </div>
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load(page())" />
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>User</th><th>Roles</th><th>Status</th><th>Joined</th><th></th></tr></thead>
@@ -91,6 +92,7 @@ export class AdminUsers implements OnInit {
 
   load(page: number): void {
     this.loading.set(true);
+    this.error.set(null);
     this.api.users(this.q, this.status, page).pipe(finalize(() => this.loading.set(false))).subscribe({
       next: (p) => {
         this.users.set(p.content);

@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } fro
 import { finalize } from 'rxjs';
 import { BookingStatus, STATUS_LABELS } from '../../core/bookings/booking.models';
 import { toApiError } from '../../core/http/api-error';
+import { LoadError } from '../../shared/ui/load-error';
 import { ManageApi, ManagedBooking } from '../../core/manage/manage-api';
 import { VndPipe } from '../../shared/pipes/vnd.pipe';
 
 /** Arrivals / bookings of one hotel, ordered by check-in (UC-11). Read-only. */
 @Component({
   selector: 'app-manage-bookings',
-  imports: [VndPipe],
+  imports: [VndPipe, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card">
@@ -23,7 +24,7 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
         <div class="field"><label for="mb-to">Until</label><input id="mb-to" type="date" #to /></div>
         <button class="btn btn-secondary" type="button" (click)="apply(status.value, from.value, to.value)">Filter</button>
       </div>
-      @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+      <app-load-error [message]="error()" (retry)="load(page())" />
       <div class="table-wrap">
         <table class="table">
           <thead><tr><th>Code</th><th>Guest</th><th>Stay</th><th>Guests</th><th>Status</th><th>Total</th></tr></thead>

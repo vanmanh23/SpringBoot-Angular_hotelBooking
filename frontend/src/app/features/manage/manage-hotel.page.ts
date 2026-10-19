@@ -7,6 +7,7 @@ import { Amenity } from '../../core/hotels/hotel.models';
 import { HotelApi } from '../../core/hotels/hotel-api';
 import { ApiError, toApiError } from '../../core/http/api-error';
 import { HotelRequest, HotelStatus, ManagedHotel, ManageApi } from '../../core/manage/manage-api';
+import { LoadError } from '../../shared/ui/load-error';
 import { HotelForm } from './hotel-form';
 import { HotelManagers } from './hotel-managers';
 import { ManageBookings } from './manage-bookings';
@@ -26,12 +27,12 @@ export function offeredTransitions(status: HotelStatus, admin: boolean, wasAppro
 
 @Component({
   selector: 'app-manage-hotel-page',
-  imports: [RouterLink, ReactiveFormsModule, HotelForm, ManageRoomTypes, ManageBookings, HotelManagers],
+  imports: [RouterLink, ReactiveFormsModule, HotelForm, ManageRoomTypes, ManageBookings, HotelManagers, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a routerLink="/manage" class="back">← Hotels</a>
     @if (loadError()) {
-      <div class="alert alert-error" role="alert">{{ loadError() }}</div>
+      <app-load-error [message]="loadError()" (retry)="reload()" />
     } @else if (hotel(); as h) {
       <header class="head">
         <div>
@@ -154,6 +155,7 @@ export class ManageHotelPage implements OnInit {
   }
 
   reload(): void {
+    this.loadError.set(null);
     this.api.hotel(this.id()).subscribe({
       next: (h) => this.setHotel(h),
       error: (err) => {

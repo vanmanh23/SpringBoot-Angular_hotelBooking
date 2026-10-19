@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { BookingStatus, STATUS_LABELS } from '../../core/bookings/booking.models';
 import { toApiError } from '../../core/http/api-error';
+import { LoadError } from '../../shared/ui/load-error';
 import { AdminApi, ManagedBooking } from '../../core/manage/manage-api';
 import { Payment, PaymentStatus } from '../../core/payments/payment-api';
 import { VndPipe } from '../../shared/pipes/vnd.pipe';
@@ -11,7 +12,7 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
 /** All bookings, searchable by code (FR-ADMIN-03). */
 @Component({
   selector: 'app-admin-bookings',
-  imports: [RouterLink, VndPipe],
+  imports: [RouterLink, VndPipe, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="toolbar">
@@ -21,7 +22,7 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
           @for (s of statuses; track s) { <option [value]="s">{{ labels[s] }}</option> }</select></div>
       <button class="btn btn-secondary" type="button" (click)="apply(code.value, st.value)">Search</button>
     </div>
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load(page())" />
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Code</th><th>Hotel</th><th>Guest</th><th>Stay</th><th>Status</th><th>Total</th></tr></thead>
@@ -85,7 +86,7 @@ export class AdminBookings implements OnInit {
 /** Payment monitoring with the "needs review" queue (FR-ADMIN-04) and manual refunds. */
 @Component({
   selector: 'app-admin-payments',
-  imports: [DatePipe, RouterLink, VndPipe],
+  imports: [DatePipe, RouterLink, VndPipe, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="toolbar">
@@ -95,7 +96,7 @@ export class AdminBookings implements OnInit {
       <label class="check"><input type="checkbox" #review [checked]="needsReview" /> Needs review only</label>
       <button class="btn btn-secondary" type="button" (click)="apply(st.value, review.checked)">Filter</button>
     </div>
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load(page())" />
     @if (message()) { <p class="alert alert-success" role="status">{{ message() }}</p> }
     <div class="table-wrap">
       <table class="table">

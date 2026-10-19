@@ -3,12 +3,13 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@ang
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { toApiError } from '../../core/http/api-error';
+import { LoadError } from '../../shared/ui/load-error';
 import { AdminReview, ReviewApi, ReviewStatus } from '../../core/reviews/review-api';
 
 /** Review moderation: hide abusive reviews, restore hidden ones. Hotel scores update automatically (D-028). */
 @Component({
   selector: 'app-admin-reviews',
-  imports: [DatePipe, RouterLink],
+  imports: [DatePipe, RouterLink, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="toolbar">
@@ -17,7 +18,7 @@ import { AdminReview, ReviewApi, ReviewStatus } from '../../core/reviews/review-
           <option value="">All</option><option value="VISIBLE">Visible</option><option value="HIDDEN">Hidden</option>
         </select></div>
     </div>
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load(page())" />
     <ul class="list">
       @for (r of reviews(); track r.id) {
         <li class="card item">

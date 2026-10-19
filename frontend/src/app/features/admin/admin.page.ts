@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, OnInit, signal } fro
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { toApiError } from '../../core/http/api-error';
+import { LoadError } from '../../shared/ui/load-error';
 import { ManageApi, ManagedHotelSummary } from '../../core/manage/manage-api';
 import { AdminReviews } from './admin-reviews';
 import { AdminBookings, AdminPayments } from './admin-transactions';
@@ -16,10 +17,10 @@ const SECTIONS: { id: Section; label: string }[] = [
 /** Hotels waiting for approval (DRAFT); approval itself happens on the hotel's management page. */
 @Component({
   selector: 'app-admin-hotel-approvals',
-  imports: [RouterLink],
+  imports: [RouterLink, LoadError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (error()) { <p class="alert alert-error" role="alert">{{ error() }}</p> }
+    <app-load-error [message]="error()" (retry)="load()" />
     <div class="table-wrap">
       <table class="table">
         <thead><tr><th>Hotel</th><th>City</th><th></th></tr></thead>
@@ -41,6 +42,12 @@ export class AdminHotelApprovals implements OnInit {
   protected readonly error = signal<string | null>(null);
 
   ngOnInit(): void {
+    this.load();
+  }
+
+  load(): void {
+    this.loading.set(true);
+    this.error.set(null);
     this.api.hotels('DRAFT', null, 0, 50).pipe(finalize(() => this.loading.set(false))).subscribe({
       next: (p) => this.drafts.set(p.content),
       error: (err) => this.error.set(toApiError(err).message),
