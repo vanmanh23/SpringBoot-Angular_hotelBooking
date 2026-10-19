@@ -23,6 +23,7 @@ Design reference: `hotel-stayed-report.docx` (not in the repo). Decisions: [`doc
 | `backend/` | Maven multi-module: `common-lib`, `api-gateway`, six services |
 | `frontend/` | Angular app (`core/`, `shared/`, `features/`) |
 | `infra/postgres/init/` | First-start script that creates per-service DBs and roles |
+| `infra/pgadmin/` | Server definition pre-loaded into pgAdmin |
 | `docs/` | audit, API contract, traceability, decisions, plan, progress |
 
 ## Prerequisites
@@ -36,6 +37,12 @@ echo "AUTH_JWT_PRIVATE_KEY=$(scripts/generate-jwt-key.sh)" >> .env   # or paste 
 docker compose up -d --build --wait
 # Frontend: http://localhost:4200   Gateway: http://localhost:8080
 docker compose down          # keeps data volumes
+```
+
+pgAdmin (optional, bound to 127.0.0.1; set `PGADMIN_EMAIL` / `PGADMIN_PASSWORD` in `.env`):
+```bash
+docker compose --profile tools up -d pgadmin
+# http://localhost:5050 — the "stay-hotel" server is pre-registered; connect as postgres with POSTGRES_PASSWORD
 ```
 
 Demo data (optional; ADMIN_EMAIL/ADMIN_PASSWORD must have been set before the first start):
