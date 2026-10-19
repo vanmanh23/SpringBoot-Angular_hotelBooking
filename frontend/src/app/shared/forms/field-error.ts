@@ -3,8 +3,11 @@ import { AbstractControl } from '@angular/forms';
 import { controlErrorMessage } from './form-errors';
 
 /** Shows the validation message of a control once the user has interacted with it. */
+// Reactive-form control state (touched/dirty/errors) is not signal-based, so this tiny leaf is checked with its
+// parent on every pass instead of OnPush; otherwise errors would not appear after blur.
 @Component({
   selector: 'app-field-error',
+  // eslint-disable-next-line @angular-eslint/prefer-on-push-component-change-detection
   changeDetection: ChangeDetectionStrategy.Default,
   template: `
     @if (control().invalid && (control().touched || control().dirty)) {

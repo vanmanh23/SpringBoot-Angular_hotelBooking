@@ -91,7 +91,7 @@ type DetailState =
 
           <section class="rooms">
             <h2>Rooms</h2>
-            <app-search-form [initial]="stay()" (search)="changeStay($event)" />
+            <app-search-form [initial]="stay()" (searched)="changeStay($event)" />
             @if (nights(); as n) {
               <p class="muted">{{ n }} {{ n === 1 ? 'night' : 'nights' }} · {{ stay().guests ?? 1 }} guests · {{ stay().rooms ?? 1 }} room(s)</p>
             }

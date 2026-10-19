@@ -12,7 +12,7 @@ import { SearchForm } from '../hotels/search-form';
     <section class="hero">
       <h1>Find your next stay</h1>
       <p class="muted">Search hotels by destination, dates and number of guests.</p>
-      <app-search-form (search)="search($event)" />
+      <app-search-form (searched)="search($event)" />
       <p class="popular">
         Popular:
         @for (city of popular; track city) {

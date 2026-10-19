@@ -27,7 +27,7 @@ const PAGE_SIZE = 10;
   imports: [ReactiveFormsModule, RouterLink, SearchForm, VndPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-search-form [initial]="query()" (search)="onSearch($event)" />
+    <app-search-form [initial]="query()" (searched)="onSearch($event)" />
 
     <div class="layout">
       <aside class="filters card" aria-label="Filters">

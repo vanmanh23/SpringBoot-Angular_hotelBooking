@@ -70,7 +70,7 @@ export function stayDatesValidator(group: AbstractControl): ValidationErrors | n
 })
 export class SearchForm {
   readonly initial = input<HotelSearchQuery>({});
-  readonly search = output<HotelSearchQuery>();
+  readonly searched = output<HotelSearchQuery>();
 
   protected readonly today = isoDate(new Date());
   protected readonly maxNights = MAX_NIGHTS;
@@ -103,7 +103,7 @@ export class SearchForm {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
-    this.search.emit({
+    this.searched.emit({
       city: v.city.trim() || undefined,
       checkIn: v.checkIn || undefined,
       checkOut: v.checkOut || undefined,
