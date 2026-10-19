@@ -176,6 +176,12 @@ Source of truth order: confirmed business requirements & security rules → runn
 - **Decision:** `/manage` (managers: own hotels; admins: all) covers hotel details, status transitions, amenities, photos, room types, bookings and (admin) manager assignment; `/admin` covers users (roles, lock), hotel approvals, bookings, payments (needs-review queue, manual refund) and review moderation. The UI only *offers* actions; every rule is enforced by the backend (the specs check the UI mirrors the hotel status machine).
 - **Limit:** manager assignment searches users that already have the HOTEL_MANAGER role; hotel-service itself does not verify the role of the assigned user id (it cannot see auth data). Tracked as R-M5-1.
 
+### D-033 — Frontend quality gates (M6)
+- **Lint:** angular-eslint 21 (matches Angular 21) with `tsRecommended`, `templateRecommended` **and `templateAccessibility`**, applied to inline templates too; OnPush is enforced. Single documented exception: `FieldError` stays Default because reactive-form control state is not signal-based.
+- **Browser E2E:** Playwright 1.64 (Chromium) runs against the **real Compose stack** on :4200 (no mocks): desktop project for every spec, `Pixel 7` mobile project for specs tagged `@mobile`. Test data is created through the public API with the bootstrap admin (`E2E_ADMIN_EMAIL/PASSWORD` from the environment); hotels created by the run are set INACTIVE at the end.
+- **Accessibility:** `@axe-core/playwright`, WCAG 2.0/2.1 A + AA tags, zero violations required on public and staff pages; plus a keyboard-only search check.
+- **Dependencies:** dev dependencies only were added; the lock file diff was checked: 110 packages added, **0 existing versions changed**.
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)

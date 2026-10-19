@@ -74,7 +74,11 @@ npx ng serve
 ## Tests
 ```bash
 cd backend && mvn -B clean verify          # unit + Testcontainers integration tests
-cd frontend && npx ng build && npx ng test --watch=false
+cd frontend && npx ng lint && npx ng build && npx ng test --watch=false
+
+# Browser E2E against the running stack (docker compose up -d --build --wait first)
+cd frontend && npx playwright install chromium     # once
+E2E_ADMIN_EMAIL=<ADMIN_EMAIL> E2E_ADMIN_PASSWORD=<ADMIN_PASSWORD> npx playwright test
 ```
 
 ## Configuration

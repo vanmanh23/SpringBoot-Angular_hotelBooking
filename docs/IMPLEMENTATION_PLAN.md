@@ -57,7 +57,7 @@ Verify: integration tests for each endpoint (happy path, validation, 401/403, du
 - Notification consumer (idempotent) writing `notifications` and sending through a pluggable sender (log/SMTP).
 - Admin dashboards: bookings, payments, users (FR-ADMIN-*).
 
-## M6 — Frontend completion
+## M6 — Frontend completion — done 2026-10-19 (see PROGRESS)
 All flows on the real API: booking form, payment page polling backend status, my bookings, cancel, reviews, profile, admin screens. Responsive, with loading/empty/error/retry states and double-submit guards. Add ESLint (angular-eslint).
 
 ## M7 — QA

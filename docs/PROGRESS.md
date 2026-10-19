@@ -42,9 +42,19 @@ Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
 | M5-4 Manager/admin booking & payment views | Completed | `BookingStaffViewsIntegrationTest` 3/3; payment admin assertions; gateway 28/28; E2E 403 matrix | — |
 | M5-5 Angular reviews, notifications, /manage, /admin | Completed | `ng test` 78/78; `ng build` PASS | Real-browser pass (M6) |
 | M5-6 Compose: Mailpit, Kafka deps | Completed | 12/12 healthy; `docker compose config -q` | — |
-| M6–M8 | Not Started | — | — |
+| M6-1 ESLint (incl. template a11y rules) | Completed | `ng lint`: all files pass; D-033 | — |
+| M6-2 Browser E2E on the real stack (Playwright) | Completed | 12/12 (desktop 9 + mobile 3); suite run 4× + 13 targeted repeats: 1 unexplained failure (see risks) | Firefox/WebKit (M7) |
+| M6-3 Accessibility + responsive | Completed | axe WCAG A/AA 0 violations on 14 pages; no horizontal scroll; keyboard search | Screen-reader pass (manual, M8) |
+| M6-4 Uniform error/retry states | Completed | `LoadError` on every list; bug found and fixed (admin users error never cleared); `ng test` 79/79 | — |
+| M7–M8 | Not Started | — | — |
 
 ## Session log
+### 2026-10-19 — Session 7 (M6)
+- Branch `feat/m6-frontend-completion`. Lint + Playwright + axe (D-033). Frontend unit 79/79, lint clean, browser E2E 12/12, build PASS. Backend unchanged since M5 (220/220).
+- Fixed: `SearchForm` output named like a DOM event (`search` → `searched`); `App` not OnPush; staff lists had errors without retry; admin users list kept a stale error after a successful reload.
+- Flake: in 4 full runs the mobile booking journey failed once (the slow run right after a container rebuild, 3.0 min vs ~1.5 min); not reproduced in 13 targeted repeats; artifacts were overwritten. Kept as risk R-M6-1, no timeout increased without evidence.
+- Not covered by browser E2E: writing a review (needs a completed stay; covered by the M5 API E2E), Firefox/WebKit.
+
 ### 2026-10-19 — Session 6 (M5)
 - The owner approved in-app + SMTP (Mailpit in dev) → D-029. D-027/D-028/D-030 as agreed in the contract; D-031 (admin review list, additive) and D-032 (staff UI, supersedes D-017). Branch `feat/m5-reviews-notifications-admin`.
 - Backend 220/220, frontend 78/78, stack E2E 32/32 PASS; log scan: 0 ERROR, 0 contact emails/tokens/passwords.

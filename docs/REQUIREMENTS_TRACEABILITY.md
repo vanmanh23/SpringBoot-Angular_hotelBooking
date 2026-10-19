@@ -14,7 +14,7 @@ Last updated: 2026-10-18 (M4).
 | OBJ-04 | Booking: create, view, track, cancel | M3/M4 | Verified | booking tests (42), FE specs, E2E M3 16/16 + M4 21/21 |
 | OBJ-05 | Payment integration | M4 | Verified with the sandbox provider (D-023); real gateway needs credentials | payment tests (30), E2E 21/21 |
 | OBJ-06 | Administration | M1/M5 | Verified (API + UI); audit of non-user admin actions open (BR-32) | admin tests in auth/booking/payment/review, `admin.spec.ts`, E2E M5 32/32 |
-| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 220 backend + 78 frontend tests PASS (M5), incl. concurrency, Kafka duplicates, DLT, IDOR checks |
+| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 220 backend + 79 frontend unit + 12 browser E2E tests PASS (M6), incl. concurrency, Kafka duplicates, DLT, IDOR, WCAG AA (axe) |
 | OBJ-08 | Deployment: packaging, env config, logging | M0/M8 | In Progress | `docker-compose.yml`, `.env.example`, health checks |
 
 ## Functional requirements
@@ -67,10 +67,10 @@ Last updated: 2026-10-18 (M4).
 | NFR-04 | Consistency (no overbooking) | conditional UPDATE per night (D-018) | Verified | `BookingConcurrencyTest` 6/6 (×3 repeats), E2E 10-way race |
 | NFR-05 | Reliability | timeouts on every outbound call; outbox; at-least-once + dedup; retries/backoff + DLT; webhook redelivery; refund resubmission | In Progress (no circuit breaker yet) | M4 tests, E2E (0 dead letters) |
 | NFR-06 | Maintainability | module-per-service, common-lib limited to cross-cutting code | In Progress | repo structure |
-| NFR-07 | Testability | JUnit 5, Testcontainers (Postgres 17), Vitest | In Progress | `mvn verify` PASS |
+| NFR-07 | Testability | JUnit 5, Testcontainers (Postgres 17, Kafka), Vitest, Playwright on the real stack, ESLint | In Progress (coverage report in M7) | `mvn verify` 220, `ng test` 79, `ng lint` clean, Playwright 12 |
 | NFR-08 | Observability | actuator health/readiness; `X-Correlation-Id` from gateway into every service's log MDC | In Progress | `GatewayRoutingTest` correlation cases, smoke tests |
 | NFR-09 | Recoverability | named volumes; backup procedure in M8 | Not Started | |
-| NFR-10 | Compatibility | responsive CSS (grids collapse below 600–800 px) | In Progress | NOT RUN in real browsers yet (M6) |
+| NFR-10 | Compatibility | responsive CSS (grids collapse below 600–800 px); Playwright desktop + Pixel 7 projects; axe WCAG A/AA | Verified on Chromium (desktop + mobile emulation); Firefox/WebKit not run | `e2e/*.spec.ts` 12/12, no horizontal scroll on public pages |
 
 ## Business rules
 | ID | Rule (short) | Where enforced | Status |

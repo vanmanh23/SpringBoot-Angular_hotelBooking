@@ -123,3 +123,16 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | Real browser | — | **NOT RUN** (M6) |
 
 Risks added: **R-M5-1** hotel-service accepts any user id as manager (the UI only offers HOTEL_MANAGER users) — add a role check via auth-service in M7. **R-M5-2** notification history grows without retention — add a retention job in M8.
+
+## 11. M6 verification (2026-10-19)
+| Check | Command | Result |
+|-------|---------|--------|
+| Lint | `npx ng lint` | **PASS**: all files pass (TS + inline templates, accessibility rules) |
+| Unit | `npx ng test --watch=false` | **PASS**: 79/79 |
+| Build | `npx ng build` | **PASS**, no warnings |
+| Browser E2E | `E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npx playwright test` against the Compose stack | **PASS** 12/12 (desktop: guest search → register → checkout → sandbox payment → confirmed → notifications → cancel → refund; token not in web storage, refresh cookie HttpOnly; manager draft → admin approval → manager edit → public; admin roles/lock → locked login refused; error/retry; not-found pages; keyboard search. Mobile Pixel 7: booking journey + axe/responsive) |
+| Accessibility | axe WCAG 2.0/2.1 A+AA | **PASS**: 0 violations on 6 public + 8 signed-in pages |
+| Stability | 4 full runs + 13 repeats of the booking journey | **1 failure** (mobile, slow first run after rebuild), not reproduced → R-M6-1 |
+| Firefox / WebKit | — | **NOT RUN** |
+
+Risk added: **R-M6-1** one unexplained failure of the mobile booking journey in the first run after a container rebuild; keep traces on CI (`trace: retain-on-failure` already set) and investigate on the next occurrence.
