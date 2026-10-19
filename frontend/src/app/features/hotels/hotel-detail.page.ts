@@ -10,6 +10,7 @@ import { toQueryParams } from '../../core/hotels/search-query';
 import { ApiError, toApiError } from '../../core/http/api-error';
 import { nightsBetween } from '../../shared/forms/date-utils';
 import { VndPipe } from '../../shared/pipes/vnd.pipe';
+import { HotelReviews } from '../reviews/hotel-reviews';
 import { SearchForm } from './search-form';
 
 type DetailState =
@@ -19,7 +20,7 @@ type DetailState =
 
 @Component({
   selector: 'app-hotel-detail-page',
-  imports: [RouterLink, VndPipe, SearchForm],
+  imports: [RouterLink, VndPipe, SearchForm, HotelReviews],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a routerLink="/hotels" [queryParams]="stayParams()" class="back">← Back to results</a>
@@ -134,6 +135,8 @@ type DetailState =
               the final amount is calculated by our system when you book. Availability is indicative until your booking is created.
             </p>
           </section>
+
+          <app-hotel-reviews [hotelId]="h.id" [avgRating]="h.avgRating" [reviewCount]="h.reviewCount" />
         }
       }
     }

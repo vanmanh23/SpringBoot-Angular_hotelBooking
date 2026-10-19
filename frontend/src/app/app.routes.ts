@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './core/auth/auth.guards';
+import { authGuard, guestGuard, roleGuard } from './core/auth/auth.guards';
 
 export const routes: Routes = [
   {
@@ -53,6 +53,30 @@ export const routes: Routes = [
     title: 'My profile · Stay Hotel',
     canActivate: [authGuard],
     loadComponent: () => import('./features/profile/profile.page').then((m) => m.ProfilePage),
+  },
+  {
+    path: 'notifications',
+    title: 'Notifications · Stay Hotel',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/notifications/notifications.page').then((m) => m.NotificationsPage),
+  },
+  {
+    path: 'manage',
+    title: 'Manage hotels · Stay Hotel',
+    canActivate: [roleGuard('HOTEL_MANAGER', 'ADMIN')],
+    loadComponent: () => import('./features/manage/manage-hotels.page').then((m) => m.ManageHotelsPage),
+  },
+  {
+    path: 'manage/hotels/:id',
+    title: 'Manage hotel · Stay Hotel',
+    canActivate: [roleGuard('HOTEL_MANAGER', 'ADMIN')],
+    loadComponent: () => import('./features/manage/manage-hotel.page').then((m) => m.ManageHotelPage),
+  },
+  {
+    path: 'admin',
+    title: 'Administration · Stay Hotel',
+    canActivate: [roleGuard('ADMIN')],
+    loadComponent: () => import('./features/admin/admin.page').then((m) => m.AdminPage),
   },
   {
     path: 'forbidden',

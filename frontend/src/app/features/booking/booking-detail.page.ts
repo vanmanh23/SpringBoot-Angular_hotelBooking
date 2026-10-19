@@ -8,10 +8,11 @@ import { isTrustedCheckoutUrl, Payment, PaymentApi, REDIRECT_TO } from '../../co
 import { Booking, STATUS_LABELS } from '../../core/bookings/booking.models';
 import { toApiError } from '../../core/http/api-error';
 import { VndPipe } from '../../shared/pipes/vnd.pipe';
+import { StayReview } from '../reviews/stay-review';
 
 @Component({
   selector: 'app-booking-detail-page',
-  imports: [RouterLink, VndPipe, DatePipe],
+  imports: [RouterLink, VndPipe, DatePipe, StayReview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a routerLink="/my-bookings" class="back">← My bookings</a>
@@ -84,6 +85,10 @@ import { VndPipe } from '../../shared/pipes/vnd.pipe';
           <div class="line total"><span>Total</span><span>{{ b.totalAmount | vnd }}</span></div>
         </section>
       </div>
+
+      @if (b.status === 'COMPLETED') {
+        <app-stay-review [bookingId]="b.id" />
+      }
 
       <section class="card">
         <h2>Cancellation</h2>

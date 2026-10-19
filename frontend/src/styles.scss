@@ -57,7 +57,9 @@ a {
     margin-bottom: 4px;
   }
 
-  input {
+  input,
+  select,
+  textarea {
     font: inherit;
     padding: 10px 12px;
     border: 1px solid var(--color-border);
@@ -127,4 +129,79 @@ a {
 
 .muted {
   color: var(--color-muted);
+}
+
+/* ---- Staff areas (manage/admin) ---- */
+.toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+
+  .field {
+    margin-bottom: 0;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+
+  th {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 16px;
+
+  button {
+    font: inherit;
+    background: none;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--color-muted);
+
+    &[aria-selected='true'] {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+      font-weight: 600;
+    }
+  }
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 0.875rem;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
 }

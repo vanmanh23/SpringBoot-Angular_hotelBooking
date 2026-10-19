@@ -16,14 +16,15 @@ export const authGuard: CanActivateFn = (_route, state) => {
 export const guestGuard: CanActivateFn = () =>
   inject(AuthService).isAuthenticated() ? inject(Router).createUrlTree(['/']) : true;
 
-export function roleGuard(role: Role): CanActivateFn {
+/** Allows the route when the user holds ANY of the given roles. */
+export function roleGuard(...roles: Role[]): CanActivateFn {
   return (_route, state) => {
     const auth = inject(AuthService);
     const router = inject(Router);
     if (!auth.isAuthenticated()) {
       return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
     }
-    return auth.hasRole(role) ? true : router.createUrlTree(['/forbidden']);
+    return roles.some((r) => auth.hasRole(r)) ? true : router.createUrlTree(['/forbidden']);
   };
 }
 

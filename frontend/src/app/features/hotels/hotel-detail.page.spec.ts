@@ -57,7 +57,12 @@ describe('HotelDetailPage', () => {
     harness = await RouterTestingHarness.create();
   });
 
-  afterEach(() => backend.verify());
+  afterEach(() => {
+    // The reviews section loads independently (covered by hotel-reviews.spec.ts).
+    backend.match((r) => r.url.endsWith('/reviews'))
+      .forEach((r) => r.flush({ content: [], page: 0, size: 5, totalElements: 0, totalPages: 0 }));
+    backend.verify();
+  });
 
   const text = () => (harness.routeNativeElement as HTMLElement).textContent ?? '';
 
