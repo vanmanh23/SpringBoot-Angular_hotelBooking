@@ -111,3 +111,15 @@ Nothing user-facing is implemented yet. Every FR is *Not Started* except the aut
 | Stack | `docker compose up -d --build --wait` | **PASS**: 10/10 healthy; booking_db V1–V2, payment_db V1; broker topics: booking-events(.DLT), payment-events(.DLT) |
 | E2E | `m4_e2e.py` through `:4200` with `BOOKING_HOLD_DURATION=75s` (restored to 15m afterwards) | **PASS**: 20/21 in the scripted run plus the forged/stale/no-signature webhook checks re-run separately (all 401, nothing recorded) after correcting the script, which had sent an empty body → 21/21. Covered: checkout through the sandbox page, CSP on the provider page, webhook → outbox → Kafka → CONFIRMED, duplicate webhook no-op, no double charge, cancellation refund end to end with exactly one provider refund, decline then retry, late payment accepted, late payment without rooms → auto-refund + review flag, 0 dead letters |
 | Real browser | — | **NOT RUN** (M6) |
+
+## 10. M5 verification (2026-10-19)
+| Check | Command | Result |
+|-------|---------|--------|
+| Backend | `mvn -B -f backend/pom.xml clean verify` | **PASS**: BUILD SUCCESS, 220 tests (hotel 64, booking 45, auth 30, payment 30, gateway 28, notification 10, review 9, common 4); review, hotel and notification now run against real Kafka (Testcontainers) |
+| Frontend | `ng build`; `ng test` | **PASS**: 78/78 (reviews, notifications, manage, admin specs added; hotel-detail spec adapted to the new reviews request) |
+| Stack | `docker compose up -d --build --wait` | **PASS**: 12/12 healthy (adds Mailpit); review_db V1, notification_db V1, hotel_db V3; topic review-events(.DLT) |
+| E2E | `m5_e2e.py` through `:4200`, booking completion job at 20 s (temporary override, restored) | **PASS** 32/32: in-app + email notifications (created/confirmed/stay completed), unread header, notification IDOR 404, review before completion 403, completion → eligibility via Kafka, review IDOR 403, duplicate 409, score 4.0 then 0 after admin hide, moderation queue, manager booking view 200 / other manager 403 / customer 403, admin lists, 0 dead letters, 0 failed emails |
+| Log scan | `docker compose logs --since 30m` | **PASS**: 0 ERROR lines; 0 occurrences of contact emails, bearer tokens or passwords; expected WARNs only (pre-M5 events without a stored contact are skipped) |
+| Real browser | — | **NOT RUN** (M6) |
+
+Risks added: **R-M5-1** hotel-service accepts any user id as manager (the UI only offers HOTEL_MANAGER users) — add a role check via auth-service in M7. **R-M5-2** notification history grows without retention — add a retention job in M8.

@@ -151,6 +151,31 @@ Source of truth order: confirmed business requirements & security rules → runn
 - **Decision:** `POST /payments` carries only `bookingId`. payment-service reads the booking from booking-service **forwarding the caller's JWT**, so booking-service's ownership rule (404 for others) also protects payments, and the amount is the booking's own total (BR-22). There is no internal trust-me endpoint.
 - **Guards:** the hold must have more than 30 s left (so a payment cannot start seconds before expiry); one active payment per booking (partial unique index); an open checkout is resumed rather than duplicated.
 
+### D-027 — Review eligibility from a local projection (M5)
+- **Decision:** review-service keeps `eligible_stays`, fed by `BookingCompleted` (`bookingId, userId, hotelId, checkOutDate`). A review needs a row for **this booking and this user**; one review per booking (`UNIQUE booking_id`, concurrent double submit → 409 `REVIEW_EXISTS`). Authors are shown as "Verified guest" only.
+- **Why:** no synchronous call to booking-service on the write path; the check cannot be bypassed by sending another user's booking id (403 `REVIEW_NOT_ALLOWED`).
+- **Edit/delete:** author only (admin may delete). Moderation (VISIBLE/HIDDEN + reason) is admin only; hidden reviews leave the public list and the score.
+
+### D-028 — Hotel score as absolute, versioned events (M5)
+- **Decision:** after each review change review-service locks `hotel_rating_stats` for the hotel, recomputes `{avgRating (1 decimal, HALF_UP), reviewCount}` from VISIBLE reviews, increments `version` and publishes `HotelRatingChanged` on `review-events` (keyed by hotelId). hotel-service applies it only `WHERE rating_version < version`.
+- **Why:** duplicates and reordering cannot corrupt the score; no deltas to lose.
+- **Detail:** hotel-service writes the score with plain JDBC and maps the two columns `updatable = false`, so a manager editing the hotel never overwrites the score and the rating event does not bump the hotel's optimistic-lock version (no spurious 409).
+
+### D-029 — Notifications: in-app + email, contact data only from BookingCreated (M5; owner approved "in-app + SMTP/Mailpit")
+- **Decision:** notification-service consumes `booking-events` and `payment-events`. `BookingCreated` is the only event with personal data (`userId, contactName, contactEmail, bookingCode, hotelName`, dates, total); it is stored once in `booking_contacts`. Each relevant event creates one notification keyed by its `eventId` (`UNIQUE event_id` + `processed_messages`).
+- **Email:** plain text (no HTML rendering → no markup injection), sent **after commit**; each attempt leases the row (`FOR UPDATE SKIP LOCKED`) so the immediate send and the retry job never send twice; backoff 30 s → 4 min, at most 5 attempts, then FAILED. Errors are logged by exception class only (never the address). Mail health is excluded from `/actuator/health`, so an SMTP outage never makes the service unhealthy or blocks consumption (R-06). Dev SMTP is the Mailpit container.
+- **Events without a stored contact** (bookings created before M5) are skipped with a WARN instead of failing into the DLT. booking-events are keyed by bookingId and payment events only exist after a booking, so this is not a race in normal operation.
+
+### D-030 — Manager booking view authorised by hotel-service (M5)
+- **Decision:** `GET /api/v1/manage/hotels/{id}/bookings` in booking-service first calls hotel-service `GET /api/v1/manage/hotels/{id}` **with the caller's token** (2 s connect / 3 s read): 200 → allowed, 403/401 → 403, 404 → 404, other failure → 503. hotel-service remains the only owner of manager assignments. The staff view shows the contact **name** (front desk) but not email/phone or payment data.
+
+### D-031 — Admin review moderation list (M5 addition)
+- **Decision:** added `GET /api/v1/admin/reviews?status&hotelId&page&size` (ADMIN). Without it a hidden review could never be found again to restore it. Additive; no existing endpoint changed.
+
+### D-032 — Staff UI (supersedes D-017)
+- **Decision:** `/manage` (managers: own hotels; admins: all) covers hotel details, status transitions, amenities, photos, room types, bookings and (admin) manager assignment; `/admin` covers users (roles, lock), hotel approvals, bookings, payments (needs-review queue, manual refund) and review moderation. The UI only *offers* actions; every rule is enforced by the backend (the specs check the UI mirrors the hotel status machine).
+- **Limit:** manager assignment searches users that already have the HOTEL_MANAGER role; hotel-service itself does not verify the role of the assigned user id (it cannot see auth data). Tracked as R-M5-1.
+
 ---
 
 ## Pending — need an owner decision (blocking the milestone shown)

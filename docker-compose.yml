@@ -96,6 +96,9 @@ services:
 
   hotel-service:
     <<: *service-defaults
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     build: { context: ./backend, dockerfile: hotel-service/Dockerfile }
     environment:
       <<: *service-env
@@ -135,6 +138,9 @@ services:
 
   review-service:
     <<: *service-defaults
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
     build: { context: ./backend, dockerfile: review-service/Dockerfile }
     environment:
       <<: *service-env
@@ -144,12 +150,41 @@ services:
 
   notification-service:
     <<: *service-defaults
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
     build: { context: ./backend, dockerfile: notification-service/Dockerfile }
     environment:
       <<: *service-env
       DB_NAME: notification_db
       DB_USERNAME: notification_user
       DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?}
+      # Dev default: Mailpit. For a real relay set SMTP_* in .env (credentials never in this file).
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@stayhotel.local}
+      APP_PUBLIC_URL: ${PUBLIC_BASE_URL:-http://localhost:4200}
+
+  # Dev mail catcher: every email the stack sends lands here (web UI on 127.0.0.1 only).
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_MAX_MESSAGES: "2000"
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   api-gateway:
     build: { context: ./backend, dockerfile: api-gateway/Dockerfile }

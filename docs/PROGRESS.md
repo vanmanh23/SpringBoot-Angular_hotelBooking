@@ -36,9 +36,22 @@ Labels: PASS · FAIL · BLOCKED · NOT RUN · N/A
 | M4-4 Outbox + Kafka + dedup + DLT + topic provisioning | Completed | `PaymentOutcomeIntegrationTest` 8/8 (real Kafka); stack topics listed; 0 dead letters in E2E | Consumer-lag metrics (M8) |
 | M4-5 Late payment policy | Completed | late accepted / rejected tests; both live in E2E | — |
 | M4-6 Angular payment flow | Completed | `ng test` 57/57 | Browser check (M6) |
-| M5–M8 | Not Started | — | — |
+| M5-1 Review service (eligibility, one per stay, moderation) | Completed | `ReviewIntegrationTest` 5 + smoke 4; E2E | — |
+| M5-2 Versioned hotel score projection | Completed | `RatingProjectionIntegrationTest` 3/3; E2E 4.0 → hidden → 0 | — |
+| M5-3 Notification service (in-app + SMTP, retries) | Completed | `NotificationIntegrationTest` 6 + smoke 4; E2E in-app + Mailpit; 0 FAILED emails | Real SMTP relay when credentials exist |
+| M5-4 Manager/admin booking & payment views | Completed | `BookingStaffViewsIntegrationTest` 3/3; payment admin assertions; gateway 28/28; E2E 403 matrix | — |
+| M5-5 Angular reviews, notifications, /manage, /admin | Completed | `ng test` 78/78; `ng build` PASS | Real-browser pass (M6) |
+| M5-6 Compose: Mailpit, Kafka deps | Completed | 12/12 healthy; `docker compose config -q` | — |
+| M6–M8 | Not Started | — | — |
 
 ## Session log
+### 2026-10-19 — Session 6 (M5)
+- The owner approved in-app + SMTP (Mailpit in dev) → D-029. D-027/D-028/D-030 as agreed in the contract; D-031 (admin review list, additive) and D-032 (staff UI, supersedes D-017). Branch `feat/m5-reviews-notifications-admin`.
+- Backend 220/220, frontend 78/78, stack E2E 32/32 PASS; log scan: 0 ERROR, 0 contact emails/tokens/passwords.
+- Fixed during verification: mail health indicator broke context start-up / health (excluded); review stats computed before taking the lock (now lock first); hotel entity could overwrite the score (columns not updatable).
+- E2E shortcut (test data only): one E2E booking was moved into the past with SQL so the completion job (20 s via a temporary compose override, removed afterwards) completes it.
+- Open: R-M5-1 (manager assignment does not verify the role server-side), BR-32 audit of non-user admin actions, no browser test yet (M6).
+
 ### 2026-10-18 — Session 5 (M4)
 - The owner accepted P-05/P-06 → D-023/D-024; D-025 (events), D-026 (amount via caller token). Branch `feat/m4-payment`.
 - Backend 198/198, frontend 57/57, stack E2E 21/21 PASS (one check re-run separately after fixing the script).

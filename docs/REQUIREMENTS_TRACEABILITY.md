@@ -8,13 +8,13 @@ Last updated: 2026-10-18 (M4).
 ## Objectives
 | ID | Objective | Milestone | Status | Evidence |
 |----|-----------|-----------|--------|----------|
-| OBJ-01 | Users: register, login, profile, roles | M1 | Verified (backend + FE login/register/profile); admin UI in M5/M6 | `AuthFlowIntegrationTest`, FE specs, E2E 22/22 |
+| OBJ-01 | Users: register, login, profile, roles | M1/M5 | Verified (backend + FE; admin user screen M5) | `AuthFlowIntegrationTest`, FE specs, E2E 22/22 |
 | OBJ-02 | Search by location, dates, guests | M2 (M3 adds booked-unit availability) | Verified (advisory availability) | `HotelSearchIntegrationTest` 22, search page specs, E2E |
-| OBJ-03 | Hotel data: info, amenities, images, room types | M2 | Verified (API); management UI M5/M6 (D-017) | `HotelManagementIntegrationTest` 19, E2E |
+| OBJ-03 | Hotel data: info, amenities, images, room types | M2/M5 | Verified (API + management UI, D-032) | `HotelManagementIntegrationTest` 19, `manage.spec.ts`, E2E |
 | OBJ-04 | Booking: create, view, track, cancel | M3/M4 | Verified | booking tests (42), FE specs, E2E M3 16/16 + M4 21/21 |
 | OBJ-05 | Payment integration | M4 | Verified with the sandbox provider (D-023); real gateway needs credentials | payment tests (30), E2E 21/21 |
-| OBJ-06 | Administration | M1/M5 | In Progress | user admin API verified (M1); hotel/booking/payment admin in M5 |
-| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 198 backend + 57 frontend tests PASS (M4), incl. concurrency, Kafka duplicates and DLT |
+| OBJ-06 | Administration | M1/M5 | Verified (API + UI); audit of non-user admin actions open (BR-32) | admin tests in auth/booking/payment/review, `admin.spec.ts`, E2E M5 32/32 |
+| OBJ-07 | Quality: business, security and error tests | M0–M7 | In Progress | 220 backend + 78 frontend tests PASS (M5), incl. concurrency, Kafka duplicates, DLT, IDOR checks |
 | OBJ-08 | Deployment: packaging, env config, logging | M0/M8 | In Progress | `docker-compose.yml`, `.env.example`, health checks |
 
 ## Functional requirements
@@ -50,10 +50,13 @@ Last updated: 2026-10-18 (M4).
 | FR-PAY-04 | No duplicate success | `webhook_events` PK, partial unique index | — | duplicate redelivery tests, E2E replay | Verified |
 | FR-PAY-05 | Refund | `startRefund`, `RefundSubmitter`, sandbox | `refunds` | `Refunds` tests (4), E2E refund + late refund | Verified |
 | FR-PAY-06 | Transaction history | `payment_status_history`, `GET /payments/booking/{id}` | — | flow tests | Verified (no admin UI yet) |
-| FR-ADMIN-01 | Admin user management | auth-service | `/api/v1/admin/users`; `audit_logs` | `Administration` tests (6), E2E | Verified (API); UI in M5/M6 |
-| FR-ADMIN-02 | Admin hotel moderation | hotel-service | approval/suspension, `/manage/hotels`, manager assignment | `CreationAndApproval`, assignment tests | Verified (API); UI M5/M6 |
-| FR-ADMIN-03..04 | Admin bookings, payments | booking/payment | admin reads of single bookings/payments, admin refund | admin refund test | In Progress (lists/dashboards in M5) |
-| FR-NOTI-01..02 | Booking and payment notifications | notification-service + Kafka | `notifications` | — | Not Started (events already published, M5 consumes) |
+| FR-ADMIN-01 | Admin user management | auth-service | `/api/v1/admin/users`; `audit_logs` | `Administration` tests (6), E2E | Verified (API + `/admin` users UI) |
+| FR-ADMIN-02 | Admin hotel moderation | hotel-service | approval/suspension, `/manage/hotels`, manager assignment | `CreationAndApproval`, assignment tests | Verified (API + `/admin` approvals, `/manage` managers tab) |
+| FR-ADMIN-03..04 | Admin bookings, payments | booking/payment, FE `/admin` | `/admin/bookings`, `/admin/payments?needsReview`, admin refund | `BookingStaffViewsIntegrationTest`, `amountMismatchIsFlaggedNotConfirmed`, admin refund test, `admin.spec.ts`, E2E | Verified (lists; charts/dashboards not in scope) |
+| FR-NOTI-01..02 | Booking and payment notifications | notification-service + Kafka, FE bell + `/notifications` | `notifications`, `booking_contacts`; `/notifications/me`, read, read-all (D-029) | `NotificationIntegrationTest` 6 (dedup, ownership, after-commit email, bounded retries, real broker), `notifications.page.spec.ts`, E2E (in-app + Mailpit) | Verified |
+| FR-REVIEW-01 | Review a completed stay (one per booking) | review-service, FE booking detail | `POST /reviews`, `eligible_stays` (D-027) | `ReviewIntegrationTest` (eligibility, IDOR, 409, concurrent submit), `reviews.spec.ts`, E2E | Verified |
+| FR-REVIEW-02 | Show reviews and hotel score | review + hotel-service, FE hotel detail | `GET /hotels/{id}/reviews`, `HotelRatingChanged` (D-028) | `RatingProjectionIntegrationTest` 3, E2E score 4.0 → hidden → 0 | Verified |
+| FR-REVIEW-03 | Edit/delete own review; admin moderation | review-service, FE | `PUT/DELETE /reviews/{id}`, `/admin/reviews` (D-031) | `onlyTheAuthorEditsOrDeletesAndAdminCanModerate`, `admin` E2E | Verified |
 
 ## Non-functional requirements
 | ID | Area | How it is addressed | Status | Evidence |
@@ -101,6 +104,6 @@ Last updated: 2026-10-18 (M4).
 | BR-27 | refund follows policy | 48 h rule (D-021), one refund per payment, idempotent provider key | Verified |
 | BR-28 | guest: public only | deny-by-default security config in every service | Verified (no public business endpoints yet; health only) |
 | BR-29 | customer: own bookings | `loadVisible`, `/bookings/me` | Verified |
-| BR-30 | manager: assigned hotels | `HotelAccessPolicy` (D-013) | Verified (hotels, room types, images, amenities) |
-| BR-31 | admin: admin functions | URL rule + `@PreAuthorize`; no self-modification | Verified for user admin |
-| BR-32 | audit sensitive admin actions | `audit_logs` | Verified for user status/role changes |
+| BR-30 | manager: assigned hotels | `HotelAccessPolicy` (D-013); booking view via hotel-service (D-030) | Verified (hotels, room types, images, amenities, hotel bookings) |
+| BR-31 | admin: admin functions | URL rule + `@PreAuthorize`; no self-modification | Verified (users, bookings, payments, reviews: non-admin → 403) |
+| BR-32 | audit sensitive admin actions | `audit_logs` | Partial: user status/role changes audited; review moderation keeps reason + timestamp; hotel status/manager changes and manual refunds not in an audit log yet (M7) |

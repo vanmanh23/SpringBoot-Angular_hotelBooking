@@ -45,6 +45,12 @@ docker compose --profile tools up -d pgadmin
 # http://localhost:5050 — the "stay-hotel" server is pre-registered; connect as postgres with POSTGRES_PASSWORD
 ```
 
+Notification emails go to Mailpit in development: http://localhost:8025 (bound to 127.0.0.1). For a real relay set
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS` and `MAIL_FROM` in `.env`.
+
+Staff areas: `/manage` (hotel managers: assigned hotels; admins: all hotels) and `/admin` (users, hotel approvals,
+bookings, payments, review moderation). New registrations are always customers; an admin grants roles in `/admin`.
+
 Demo data (optional; ADMIN_EMAIL/ADMIN_PASSWORD must have been set before the first start):
 ```bash
 python scripts/seed-demo-data.py --admin-email <ADMIN_EMAIL> --admin-password <ADMIN_PASSWORD>

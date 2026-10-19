@@ -52,7 +52,7 @@ Verify: integration tests for each endpoint (happy path, validation, 401/403, du
 - Late payment policy (P-06); cancellation → refund record; retries never refund twice.
 - **Tests:** duplicate webhook, bad signature, late payment, failed payment, refund retry, Kafka duplicate delivery.
 
-## M5 — Reviews, notifications, admin
+## M5 — Reviews, notifications, admin — done 2026-10-19 (see PROGRESS)
 - Reviews only for COMPLETED bookings of the same user, one per booking; rating aggregate.
 - Notification consumer (idempotent) writing `notifications` and sending through a pluggable sender (log/SMTP).
 - Admin dashboards: bookings, payments, users (FR-ADMIN-*).

@@ -244,13 +244,55 @@ Events (Kafka, at-least-once through a transactional outbox, keyed by bookingId;
 
 Gateway/nginx: `/sandbox-gateway/**` → payment-service.
 
+## M5 — Reviews, notifications, management & admin views — Implemented & verified (2026-10-19)
+
+Decisions (D-027..D-030):
+- **Review eligibility:** a review requires a COMPLETED stay. review-service keeps a local `eligible_stays` projection fed by a `BookingCompleted` event, so there is no synchronous call. One review per booking. Reviews show as "Verified guest" (no personal data).
+- **Hotel rating:** review-service recomputes `{avgRating, reviewCount}` after every change and publishes `HotelRatingChanged {hotelId, avgRating, reviewCount, version}` on `review-events`. hotel-service applies the event only if `version` is newer, so out-of-order or duplicate events are harmless. Hidden reviews do not count.
+- **Notifications:** in-app records plus email over SMTP (Mailpit in dev).
+  - notification-service consumes `booking-events` and `payment-events`. Contact data arrives once, in `BookingCreated` (`userId`, `contactName`, `contactEmail`, `bookingCode`, `hotelName`, dates), and is stored in a local `booking_contacts` projection.
+  - Every notification is keyed by the source `eventId`: no duplicates.
+  - Email is sent after commit and retried up to 5 times with backoff. A failure never affects bookings or payments (R-06).
+- **Manager view of bookings (UC-11):** booking-service asks hotel-service `GET /api/v1/manage/hotels/{id}` **with the caller's token**. 200 → allowed; 403/404 → 403/404. hotel-service stays the single owner of assignments.
+
+`Review` = `{id, hotelId, bookingId, rating (1–5), comment|null, status: VISIBLE|HIDDEN, author: "Verified guest", mine: boolean, createdAt, updatedAt}`
+`Notification` = `{id, type, title, body, bookingId|null, read, createdAt}`
+
+| Method | Path | Auth | Request | Success | Errors |
+|--------|------|------|---------|---------|--------|
+| GET | `/api/v1/hotels/{hotelId}/reviews?page&size` | none | — | 200 `Page<Review>` (VISIBLE only, newest first) | 400 |
+| GET | `/api/v1/reviews/me` | bearer | — | 200 `[Review]` | 401 |
+| GET | `/api/v1/reviews/eligibility/{bookingId}` | bearer | — | 200 `{eligible, reviewId|null}` | — |
+| POST | `/api/v1/reviews` | CUSTOMER | `{bookingId, rating, comment? (≤ 2000)}` | 201 `Review` | 400; 403 `REVIEW_NOT_ALLOWED` (no completed stay of yours); 409 `REVIEW_EXISTS` |
+| PUT | `/api/v1/reviews/{id}` | author | `{rating, comment?}` | 200 `Review` | 404 (not yours) |
+| DELETE | `/api/v1/reviews/{id}` | author or ADMIN | — | 204 | 404 |
+| GET | `/api/v1/admin/reviews?status&hotelId&page&size` (D-031) | ADMIN | — | 200 `Page<{id, hotelId, bookingId, rating, comment, status, hiddenReason, createdAt, updatedAt}>` newest first | 403 |
+| PATCH | `/api/v1/admin/reviews/{id}/visibility` | ADMIN | `{status: VISIBLE\|HIDDEN, reason?}` | 200 `Review` | 404 |
+| GET | `/api/v1/notifications/me?page&size` | bearer | — | 200 `Page<Notification>` + header `X-Unread-Count` | 401 |
+| GET | `/api/v1/notifications/me/unread-count` | bearer | — | 200 `{count}` | 401 |
+| POST | `/api/v1/notifications/{id}/read` \| `/api/v1/notifications/me/read-all` | owner | — | 204 | 404 |
+| GET | `/api/v1/manage/hotels/{hotelId}/bookings?status&from&to&page&size` | ADMIN / assigned MANAGER | — | 200 `Page<BookingSummary + contactName>` ordered by check-in | 403, 404 |
+| GET | `/api/v1/admin/bookings?status&hotelId&code&page&size` | ADMIN | — | 200 `Page<BookingSummary>` | 403 |
+| GET | `/api/v1/admin/payments?status&needsReview&page&size` | ADMIN | — | 200 `Page<Payment>` newest first | 403 |
+
+Events added:
+- `booking-events`: `BookingCreated` payload gains `userId, contactName, contactEmail, bookingCode, hotelName`. New event `BookingCompleted {bookingId, userId, hotelId, checkOutDate}`.
+- New topic `review-events` (+ `.DLT`) carrying `HotelRatingChanged`.
+
+Gateway routes added:
+- `/api/v1/manage/hotels/*/bookings` → booking-service (declared before the generic manage route)
+- `/api/v1/admin/bookings[/**]` → booking-service
+- `/api/v1/admin/payments[/**]` → payment-service
+- `/api/v1/admin/reviews[/**]` → review-service
+
+Notification `type` values: `BOOKING_CREATED`, `BOOKING_CONFIRMED`, `BOOKING_EXPIRED`, `BOOKING_CANCELLED`, `PAYMENT_REJECTED`, `PAYMENT_FAILED`, `REFUND_COMPLETED`, `STAY_COMPLETED`. `body` is plain text (clients must not render it as HTML).
+
+Verification: review 9, notification 10, hotel rating projection 3, booking staff views 3, payment admin list (in `PaymentFlowIntegrationTest`), gateway routes; stack E2E 32/32 (`PROJECT_AUDIT.md` §10).
+
 ## Planned (design §6.7, not yet implemented)
 | Group | Method | Path | Auth | Milestone |
 |-------|--------|------|------|-----------|
-| Bookings | GET | `/api/v1/manage/hotels/{hotelId}/bookings` (manager view, UC-11) | assigned MANAGER / ADMIN | M5 |
-| Reviews | GET | `/api/v1/hotels/{hotelId}/reviews` | none | M5 |
-| Reviews | POST/PUT/DELETE | `/api/v1/reviews[/{reviewId}]` | owner | M5 |
-| Notifications | GET | `/api/v1/notifications/me` | bearer | M5 |
+| — | — | All design §6.7 endpoints are implemented as of M5 | — | — |
 
 ### Differences from the design
 - `/api/v1` prefix added (D-003).
