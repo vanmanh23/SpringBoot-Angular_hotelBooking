@@ -23,6 +23,10 @@ public class BookingStatusChange {
     @Id
     private UUID id;
 
+    /** Database-assigned insertion order; tie-breaker for entries with the same timestamp. */
+    @Column(name = "seq", insertable = false, updatable = false)
+    private Long seq;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "booking_id", updatable = false)
     private Booking booking;

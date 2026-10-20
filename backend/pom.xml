@@ -26,6 +26,7 @@
         <module>payment-service</module>
         <module>review-service</module>
         <module>notification-service</module>
+        <module>coverage-report</module>
     </modules>
 
     <properties>
@@ -82,5 +83,27 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <!-- Coverage (M7): per-module report in target/site/jacoco; version managed by the Spring Boot parent. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 </project>

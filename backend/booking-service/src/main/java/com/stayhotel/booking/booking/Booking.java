@@ -154,7 +154,7 @@ public class Booking {
     private List<BookingRoom> rooms = new ArrayList<>();
 
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL)
-    @OrderBy("createdAt ASC")
+    @OrderBy("createdAt ASC, seq ASC")
     @BatchSize(size = 50)
     private List<BookingStatusChange> history = new ArrayList<>();
 
