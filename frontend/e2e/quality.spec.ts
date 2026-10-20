@@ -10,6 +10,12 @@ test.describe('quality', () => {
     hotelId = (await admin.activeHotel()).id;
   });
 
+  test.afterAll(async ({ baseURL }) => {
+    // keep the public catalogue clean: test hotels never stay visible after a run
+    const admin = await Api.login(baseURL!, adminCredentials().email, adminCredentials().password);
+    await admin.send('PATCH', `/api/v1/hotels/${hotelId}/status`, { status: 'INACTIVE' });
+  });
+
   const publicPages = () => ['/', '/hotels?city=E2E', `/hotels/${hotelId}`, '/login', '/register', '/does-not-exist'];
 
   test('public pages have no WCAG A/AA violations and no horizontal scroll @mobile', async ({ page }) => {

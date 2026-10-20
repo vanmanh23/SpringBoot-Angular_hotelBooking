@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -30,9 +30,16 @@ const PAGE_SIZE = 10;
     <app-search-form [initial]="query()" (searched)="onSearch($event)" />
 
     <div class="layout">
-      <aside class="filters card" aria-label="Filters">
-        <h2>Filters</h2>
-        <form [formGroup]="filters" (ngSubmit)="applyFilters()" novalidate>
+      <aside class="filters card" aria-label="Filters" [class.open]="filtersOpen()">
+        <button class="filters-toggle btn btn-secondary btn-small" type="button" aria-controls="filters-body"
+                [attr.aria-expanded]="filtersOpen()" (click)="filtersOpen.set(!filtersOpen())">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d="M3 5h18v2H3zm4 6h10v2H7zm4 6h2v2h-2z" fill="currentColor"/>
+          </svg>
+          Filters
+        </button>
+        <h2 class="filters-title">Filters</h2>
+        <form id="filters-body" class="filters-body" [formGroup]="filters" (ngSubmit)="applyFilters()" novalidate>
           <fieldset>
             <legend>Price per night (VND)</legend>
             <div class="price">
@@ -114,7 +121,7 @@ const PAGE_SIZE = 10;
                   }
                 </div>
                 <div class="price-box">
-                  <span><span class="muted">from</span> <strong>{{ hotel.fromPrice | vnd }}</strong> <span class="muted">/ night</span></span>
+                  <span class="price"><span class="muted">from&nbsp;</span><strong>{{ hotel.fromPrice | vnd }}</strong><span class="muted">&nbsp;/ night</span></span>
                   <a class="btn btn-secondary btn-small" [routerLink]="['/hotels', hotel.id]" [queryParams]="stayParams()">View rooms</a>
                 </div>
               </article>
@@ -144,6 +151,15 @@ const PAGE_SIZE = 10;
     .filters { align-self: start; position: sticky; top: 96px; box-shadow: none; }
     @media (max-width: 860px) { .filters { position: static; } }
     .filters h2 { margin-top: 0; }
+    .filters-toggle { display: none; }
+    @media (max-width: 860px) {
+      .filters { padding: 0; border: 0; box-shadow: none; }
+      .filters-toggle { display: inline-flex; border-radius: var(--radius-pill); }
+      .filters-title, .filters-body { display: none; }
+      .filters.open { padding: 20px; border: 1px solid var(--color-border); }
+      .filters.open .filters-toggle { margin-bottom: 12px; }
+      .filters.open .filters-body { display: block; }
+    }
     fieldset { border: 0; padding: 0 0 16px; margin: 0 0 16px; border-bottom: 1px solid var(--color-border); }
     legend { font-weight: 600; margin-bottom: 10px; }
     .price { display: flex; gap: 8px; }
@@ -175,6 +191,8 @@ export class HotelSearchPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly retry$ = new BehaviorSubject<void>(undefined);
+  /** Mobile only: filters collapse behind a button (always visible on wide screens). */
+  protected readonly filtersOpen = signal(false);
 
   protected readonly starOptions = [5, 4, 3, 2, 1];
   protected readonly query = toSignal(this.route.queryParamMap.pipe(map(parseSearchQuery)), { initialValue: {} as HotelSearchQuery });

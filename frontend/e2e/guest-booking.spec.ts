@@ -11,7 +11,7 @@ test.describe('guest to confirmed booking', () => {
 
     // search as a guest
     await page.goto('/');
-    await page.getByLabel('Destination').fill(hotel.city);
+    await page.getByLabel('Destination', { exact: true }).fill(hotel.city);
     await page.getByLabel('Check-in').fill(checkIn);
     await page.getByLabel('Check-out').fill(checkOut);
     await page.getByRole('button', { name: 'Search' }).click();
