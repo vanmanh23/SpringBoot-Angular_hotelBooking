@@ -10,6 +10,7 @@ COPY booking-service/pom.xml booking-service/pom.xml
 COPY payment-service/pom.xml payment-service/pom.xml
 COPY review-service/pom.xml review-service/pom.xml
 COPY notification-service/pom.xml notification-service/pom.xml
+COPY coverage-report/pom.xml coverage-report/pom.xml
 COPY hotel-service/src hotel-service/src
 RUN --mount=type=cache,target=/root/.m2 mvn -q -B -pl hotel-service -am package -DskipTests
 
