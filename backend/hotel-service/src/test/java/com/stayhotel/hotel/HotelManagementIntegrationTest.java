@@ -59,6 +59,8 @@ class HotelManagementIntegrationTest {
             ResponseEntity<String> customer = api.call(POST, "/api/v1/hotels", request, api.customer);
             assertThat(customer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
             assertThat(api.body(customer).get("code").asText()).isEqualTo("FORBIDDEN");
+            assertThat(api.call(GET, "/api/v1/manage/hotels", null, api.customer).getStatusCode())
+                    .as("management list is staff-only (contract: 403)").isEqualTo(HttpStatus.FORBIDDEN);
         }
 
         @Test

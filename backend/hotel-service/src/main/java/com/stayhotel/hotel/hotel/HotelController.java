@@ -48,6 +48,7 @@ class HotelController {
     }
 
     @GetMapping("/api/v1/manage/hotels")
+    @PreAuthorize("hasAnyRole('ADMIN', 'HOTEL_MANAGER')") // contract: customers get 403, not an empty page
     PageResponse<HotelQueryService.ManagedHotelSummary> listManaged(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) HotelStatus status,
