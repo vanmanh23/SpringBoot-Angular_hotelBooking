@@ -106,7 +106,7 @@ export function offeredTransitions(status: HotelStatus, admin: boolean, wasAppro
     .head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
     .head h1 { margin: 0; }
     .status-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .alert-pending { background: #fffaeb; color: #93370d; }
+    .alert-pending { background: var(--color-warning-bg); color: var(--color-warning); border-color: #f3d9a4; }
     .card { margin-bottom: 16px; }
     h2 { margin-top: 0; font-size: 1.1rem; }
     .amenities { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-bottom: 12px; }

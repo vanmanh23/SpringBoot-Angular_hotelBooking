@@ -44,7 +44,12 @@ export function stayDatesValidator(group: AbstractControl): ValidationErrors | n
         <label for="sf-rooms">Rooms</label>
         <input id="sf-rooms" type="number" formControlName="rooms" min="1" max="10" />
       </div>
-      <button class="btn btn-primary" type="submit">Search</button>
+      <button class="btn btn-primary search-btn" type="submit">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z" fill="currentColor"/>
+        </svg>
+        <span>Search</span>
+      </button>
     </form>
     @if (form.touched && form.errors; as errors) {
       <p class="field-error" role="alert">
@@ -59,13 +64,25 @@ export function stayDatesValidator(group: AbstractControl): ValidationErrors | n
     }
   `,
   styles: `
-    .search-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; background: var(--color-surface);
-      border: 1px solid var(--color-border); border-radius: var(--radius); padding: 16px; }
-    .field { margin-bottom: 0; min-width: 140px; }
-    .field.grow { flex: 1 1 220px; }
-    .field.small { width: 90px; min-width: 90px; }
-    .field-error { color: var(--color-danger); margin: 8px 0 0; }
-    @media (max-width: 600px) { .field, .field.small { flex: 1 1 100%; width: auto; } .btn { width: 100%; } }
+    .search-form { display: flex; align-items: center; background: var(--color-surface); border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill); box-shadow: var(--shadow); padding: 6px 6px 6px 8px; max-width: 980px; margin: 0 auto; text-align: left; }
+    .field { margin: 0; padding: 8px 18px; min-width: 0; flex: 1 1 130px; position: relative; border-radius: var(--radius-pill); }
+    .field + .field::before { content: ''; position: absolute; left: 0; top: 22%; height: 56%; border-left: 1px solid var(--color-border); }
+    .field:hover { background: var(--color-surface-alt); }
+    .field.grow { flex: 2 1 220px; }
+    .field.small { flex: 0 1 96px; }
+    .field label { font-size: 0.75rem; font-weight: 700; margin-bottom: 2px; }
+    .field input { border: 0; padding: 0; background: transparent; font-size: 0.95rem; min-width: 0; width: 100%; }
+    .field input:hover, .field input:focus-visible { border: 0; box-shadow: none; }
+    .field:focus-within { background: var(--color-surface); box-shadow: var(--shadow); }
+    .search-btn { border-radius: var(--radius-pill); padding: 14px 22px; margin-left: 6px; flex: none; }
+    .field-error { color: var(--color-danger); margin: 12px auto 0; max-width: 980px; text-align: center; }
+    @media (max-width: 760px) {
+      .search-form { flex-direction: column; align-items: stretch; border-radius: var(--radius); padding: 8px; }
+      .field, .field.grow, .field.small { flex: none; border-radius: var(--radius-sm); padding: 10px 12px; }
+      .field + .field::before { left: 12px; right: 12px; top: 0; height: 0; border-left: 0; border-top: 1px solid var(--color-border); }
+      .search-btn { margin: 8px 0 0; }
+    }
   `,
 })
 export class SearchForm {

@@ -43,7 +43,7 @@ import { LoadError } from '../../shared/ui/load-error';
     .score { font-size: 1.05rem; }
     .review { border-top: 1px solid var(--color-border); padding: 12px 0; }
     .review header { display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
-    .stars { color: #b54708; letter-spacing: 1px; }
+    .stars { color: var(--color-text); letter-spacing: 1px; }
     .comment { margin: 6px 0; white-space: pre-line; overflow-wrap: anywhere; }
     .small { padding: 4px 10px; font-size: 0.875rem; }
   `,

@@ -135,7 +135,7 @@ import { StayReview } from '../reviews/stay-review';
     .badge { padding: 4px 12px; border-radius: 999px; font-weight: 600; background: var(--color-bg); border: 1px solid var(--color-border); }
     .badge[data-status='CONFIRMED'], .badge[data-status='COMPLETED'] { background: var(--color-success-bg); color: var(--color-success); }
     .badge[data-status='CANCELLED'], .badge[data-status='EXPIRED'] { background: var(--color-danger-bg); color: var(--color-danger); }
-    .alert-pending { background: #fffaeb; color: #93370d; }
+    .alert-pending { background: var(--color-warning-bg); color: var(--color-warning); border-color: #f3d9a4; }
     .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin: 16px 0; }
     .card { margin-bottom: 16px; }
     h2 { margin-top: 0; font-size: 1.1rem; }

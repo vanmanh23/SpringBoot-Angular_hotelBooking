@@ -89,13 +89,17 @@ const PAGE_SIZE = 10;
             </div>
           }
           @case ('loaded') {
+            <div class="grid-list">
             @for (hotel of hotels(); track hotel.id) {
-              <article class="hotel card">
-                @if (hotel.thumbnailUrl) {
-                  <img [src]="hotel.thumbnailUrl" [alt]="hotel.name" loading="lazy" width="200" height="140" />
-                } @else {
-                  <div class="placeholder" aria-hidden="true">No photo</div>
-                }
+              <article class="hotel">
+                <a class="photo" [routerLink]="['/hotels', hotel.id]" [queryParams]="stayParams()" tabindex="-1" aria-hidden="true">
+                  @if (hotel.thumbnailUrl) {
+                    <img [src]="hotel.thumbnailUrl" alt="" loading="lazy" width="400" height="300" />
+                  } @else {
+                    <span class="placeholder">No photo</span>
+                  }
+                  @if (hotel.avgRating) { <span class="rating-chip">★ {{ hotel.avgRating }}</span> }
+                </a>
                 <div class="info">
                   <h3><a [routerLink]="['/hotels', hotel.id]" [queryParams]="stayParams()">{{ hotel.name }}</a></h3>
                   <p class="muted">
@@ -103,17 +107,15 @@ const PAGE_SIZE = 10;
                     {{ hotel.address }}, {{ hotel.city }}
                   </p>
                   @if (hotel.avgRating) {
-                    <p>Rated {{ hotel.avgRating }} / 5 ({{ hotel.reviewCount }} reviews)</p>
+                    <p class="muted small">Rated {{ hotel.avgRating }} / 5 ({{ hotel.reviewCount }} reviews)</p>
                   }
                   @if (hotel.amenities.length) {
                     <p class="muted amenities">{{ amenityNames(hotel.amenities) }}</p>
                   }
                 </div>
                 <div class="price-box">
-                  <span class="muted">from</span>
-                  <strong>{{ hotel.fromPrice | vnd }}</strong>
-                  <span class="muted">per night</span>
-                  <a class="btn btn-primary" [routerLink]="['/hotels', hotel.id]" [queryParams]="stayParams()">View rooms</a>
+                  <span><span class="muted">from</span> <strong>{{ hotel.fromPrice | vnd }}</strong> <span class="muted">/ night</span></span>
+                  <a class="btn btn-secondary btn-small" [routerLink]="['/hotels', hotel.id]" [queryParams]="stayParams()">View rooms</a>
                 </div>
               </article>
             } @empty {
@@ -123,6 +125,7 @@ const PAGE_SIZE = 10;
                 <button class="btn btn-secondary" type="button" (click)="clearFilters()">Clear filters</button>
               </div>
             }
+            </div>
             @if (totalPages() > 1) {
               <nav class="pager" aria-label="Pagination">
                 <button class="btn btn-secondary" type="button" [disabled]="currentPage() === 0" (click)="goToPage(currentPage() - 1)">Previous</button>
@@ -136,29 +139,35 @@ const PAGE_SIZE = 10;
     </div>
   `,
   styles: `
-    .layout { display: grid; grid-template-columns: 260px 1fr; gap: 24px; margin-top: 24px; }
-    @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
-    .filters h2 { margin-top: 0; font-size: 1.1rem; }
-    fieldset { border: 0; padding: 0; margin: 0 0 16px; }
-    legend { font-weight: 600; margin-bottom: 8px; }
+    .layout { display: grid; grid-template-columns: 250px 1fr; gap: 32px; margin-top: 32px; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+    .filters { align-self: start; position: sticky; top: 96px; box-shadow: none; }
+    @media (max-width: 860px) { .filters { position: static; } }
+    .filters h2 { margin-top: 0; }
+    fieldset { border: 0; padding: 0 0 16px; margin: 0 0 16px; border-bottom: 1px solid var(--color-border); }
+    legend { font-weight: 600; margin-bottom: 10px; }
     .price { display: flex; gap: 8px; }
-    .price input { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius); font: inherit; }
-    .check { display: block; margin: 4px 0; }
-    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .sort select { margin-left: 8px; padding: 6px; font: inherit; }
-    .note { font-size: 0.85rem; }
-    .hotel { display: grid; grid-template-columns: 200px 1fr auto; gap: 16px; margin-bottom: 16px; padding: 16px; }
-    @media (max-width: 700px) { .hotel { grid-template-columns: 1fr; } }
-    .hotel img, .placeholder { width: 100%; max-width: 200px; height: 140px; object-fit: cover; border-radius: var(--radius); }
-    .placeholder { display: grid; place-items: center; background: var(--color-bg); color: var(--color-muted); }
-    .hotel h3 { margin: 0 0 4px; }
-    .hotel p { margin: 4px 0; }
-    .amenities { font-size: 0.9rem; }
-    .price-box { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 150px; }
-    .price-box strong { font-size: 1.25rem; }
-    @media (max-width: 700px) { .price-box { align-items: flex-start; } }
-    .empty { text-align: center; }
-    .pager { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 16px; }
+    .price input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); font: inherit; }
+    .check { display: flex; align-items: center; gap: 10px; margin: 8px 0; cursor: pointer; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+    .sort select { margin-left: 8px; padding: 8px 12px; font: inherit; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill); background: #fff; }
+    .note { font-size: 0.85rem; margin-top: 0; }
+    .grid-list { display: grid; gap: 28px 20px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    .hotel { display: flex; flex-direction: column; gap: 6px; }
+    .photo { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--radius); overflow: hidden; background: var(--color-surface-alt); }
+    .photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+    .hotel:hover .photo img { transform: scale(1.04); }
+    .placeholder { display: grid; place-items: center; height: 100%; color: var(--color-muted); }
+    .rating-chip { position: absolute; top: 12px; left: 12px; background: #fff; border-radius: var(--radius-pill); padding: 3px 10px;
+      font-size: 0.8rem; font-weight: 700; box-shadow: var(--shadow-sm); }
+    .hotel h3 { margin: 6px 0 0; font-size: 1rem; }
+    .hotel h3 a { text-decoration: none; }
+    .hotel p { margin: 0; }
+    .small, .amenities { font-size: 0.875rem; }
+    .amenities { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .price-box { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    .empty { grid-column: 1 / -1; text-align: center; }
+    .pager { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 32px; }
   `,
 })
 export class HotelSearchPage {

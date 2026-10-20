@@ -57,7 +57,7 @@ import { Review, ReviewApi } from '../../core/reviews/review-api';
   styles: `
     :host { display: block; margin-bottom: 16px; }
     h2 { margin-top: 0; font-size: 1.1rem; }
-    .stars { color: #b54708; letter-spacing: 1px; }
+    .stars { color: var(--color-text); letter-spacing: 1px; }
     .comment { white-space: pre-line; overflow-wrap: anywhere; }
     .rating { border: 0; padding: 0; margin: 0 0 12px; display: flex; gap: 12px; flex-wrap: wrap; }
     .rating legend { font-weight: 600; margin-bottom: 4px; }
