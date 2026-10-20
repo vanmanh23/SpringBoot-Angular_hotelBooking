@@ -52,6 +52,12 @@ logging:
   pattern:
     correlation: "[%X{correlationId:-}] "
 
+hotel:
+  auth-service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
+
 stayhotel:
+  audit:
+    enabled: true
   outbox:
     enabled: false   # consumer-only service: no outbox table

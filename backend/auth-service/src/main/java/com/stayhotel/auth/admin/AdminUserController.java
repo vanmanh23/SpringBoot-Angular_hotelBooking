@@ -50,6 +50,12 @@ class AdminUserController {
         return service.search(q, status, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
 
+    /** Used by hotel-service (with the admin's own token) to check a manager candidate's role (R-M5-1). */
+    @GetMapping("/{id}")
+    UserResponse get(@PathVariable UUID id) {
+        return service.get(id);
+    }
+
     @PatchMapping("/{id}/status")
     UserResponse changeStatus(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                               @Valid @RequestBody ChangeStatusRequest request) {

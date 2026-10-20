@@ -1,5 +1,6 @@
 package com.stayhotel.review;
 
+import com.stayhotel.common.audit.AuditTrail;
 import com.stayhotel.common.error.BusinessException;
 import com.stayhotel.common.messaging.OutboxWriter;
 import com.stayhotel.common.messaging.Topics;
@@ -34,9 +35,11 @@ public class ReviewService {
     private final ReviewRepository reviews;
     private final JdbcTemplate jdbc;
     private final OutboxWriter outbox;
+    private final AuditTrail audit;
     private final Clock clock;
 
-    ReviewService(ReviewRepository reviews, JdbcTemplate jdbc, OutboxWriter outbox, Clock clock) {
+    ReviewService(ReviewRepository reviews, JdbcTemplate jdbc, OutboxWriter outbox, AuditTrail audit, Clock clock) {
+        this.audit = audit;
         this.reviews = reviews;
         this.jdbc = jdbc;
         this.outbox = outbox;
@@ -101,6 +104,9 @@ public class ReviewService {
                 .orElseThrow(ReviewService::notFound);
         reviews.delete(review);
         reviews.flush();
+        if (!review.getUserId().equals(user.id())) {
+            audit.record(user.id(), "REVIEW_DELETED", "REVIEW", reviewId, Map.of("hotelId", review.getHotelId()));
+        }
         publishStats(review.getHotelId());
     }
 
@@ -117,7 +123,15 @@ public class ReviewService {
     @Transactional
     public ReviewDtos.ReviewResponse moderate(CurrentUser admin, UUID reviewId, Review.Status status, String reason) {
         Review review = reviews.findById(reviewId).orElseThrow(ReviewService::notFound);
+        Review.Status previous = review.getStatus();
         review.moderate(status, reason, clock.instant());
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        details.put("from", previous);
+        details.put("to", status);
+        if (reason != null && !reason.isBlank()) {
+            details.put("reason", reason.trim());
+        }
+        audit.record(admin.id(), "REVIEW_VISIBILITY_CHANGED", "REVIEW", reviewId, details);
         reviews.flush();
         publishStats(review.getHotelId());
         return ReviewDtos.ReviewResponse.from(review, admin.id());

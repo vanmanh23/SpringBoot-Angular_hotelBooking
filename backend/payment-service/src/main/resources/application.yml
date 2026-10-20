@@ -63,3 +63,7 @@ management:
 logging:
   pattern:
     correlation: "[%X{correlationId:-}] "
+
+stayhotel:
+  audit:
+    enabled: true   # BR-32: staff actions recorded in audit_logs

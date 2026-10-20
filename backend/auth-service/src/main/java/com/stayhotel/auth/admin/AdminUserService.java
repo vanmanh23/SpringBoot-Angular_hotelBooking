@@ -54,6 +54,11 @@ public class AdminUserService {
         return PageResponse.from(users.findAll(spec, pageable), UserResponse::from);
     }
 
+    @Transactional(readOnly = true)
+    public UserResponse get(UUID id) {
+        return users.findById(id).map(UserResponse::from).orElseThrow(AuthErrors::userNotFound);
+    }
+
     @Transactional
     public UserResponse changeStatus(UUID actorId, UUID targetId, UserStatus status, String reason) {
         User user = loadOther(actorId, targetId);

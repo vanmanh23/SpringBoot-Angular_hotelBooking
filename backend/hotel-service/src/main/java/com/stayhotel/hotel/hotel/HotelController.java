@@ -3,6 +3,7 @@ package com.stayhotel.hotel.hotel;
 import com.stayhotel.common.security.CurrentUser;
 import com.stayhotel.common.web.PageResponse;
 import com.stayhotel.hotel.amenity.AmenityDtos;
+import com.stayhotel.hotel.user.UserDirectory;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -33,10 +34,12 @@ class HotelController {
 
     private final HotelQueryService queries;
     private final HotelManagementService management;
+    private final UserDirectory users;
 
-    HotelController(HotelQueryService queries, HotelManagementService management) {
+    HotelController(HotelQueryService queries, HotelManagementService management, UserDirectory users) {
         this.queries = queries;
         this.management = management;
+        this.users = users;
     }
 
     @GetMapping("/api/v1/hotels/{id}")
@@ -108,13 +111,14 @@ class HotelController {
     @PreAuthorize("hasRole('ADMIN')")
     List<UUID> assignManager(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                              @Valid @RequestBody HotelDtos.ManagerRequest request) {
+        users.requireActiveHotelManager(request.userId(), jwt.getTokenValue());
         return management.assignManager(CurrentUser.from(jwt), id, request.userId());
     }
 
     @DeleteMapping("/api/v1/hotels/{id}/managers/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
-    void unassignManager(@PathVariable UUID id, @PathVariable UUID userId) {
-        management.unassignManager(id, userId);
+    void unassignManager(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @PathVariable UUID userId) {
+        management.unassignManager(CurrentUser.from(jwt), id, userId);
     }
 }

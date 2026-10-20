@@ -1,5 +1,6 @@
 package com.stayhotel.payment.payment;
 
+import com.stayhotel.common.audit.AuditTrail;
 import com.stayhotel.common.messaging.OutboxWriter;
 import com.stayhotel.common.messaging.Topics;
 import com.stayhotel.common.security.CurrentUser;
@@ -21,6 +22,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,11 +44,13 @@ public class PaymentService {
     private final TransactionTemplate tx;
     private final ApplicationEventPublisher events;
     private final PaymentProperties properties;
+    private final AuditTrail audit;
     private final Clock clock;
 
     PaymentService(PaymentRepository payments, RefundRepository refunds, BookingClient bookings, PaymentProvider provider,
                    OutboxWriter outbox, JdbcTemplate jdbc, TransactionTemplate tx, ApplicationEventPublisher events,
-                   PaymentProperties properties, Clock clock) {
+                   PaymentProperties properties, AuditTrail audit, Clock clock) {
+        this.audit = audit;
         this.payments = payments;
         this.refunds = refunds;
         this.bookings = bookings;
@@ -251,8 +255,10 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentDtos.PaymentResponse adminRefund(UUID paymentId, String reason) {
-        startRefund(paymentId, "Admin: " + reason, false);
+    public PaymentDtos.PaymentResponse adminRefund(UUID adminId, UUID paymentId, String reason) {
+        boolean started = startRefund(paymentId, "Admin: " + reason, false);
+        audit.record(adminId, "PAYMENT_REFUND_REQUESTED", "PAYMENT", paymentId,
+                Map.of("reason", reason, "newRefund", started));
         return toResponse(payments.findById(paymentId).orElseThrow());
     }
 

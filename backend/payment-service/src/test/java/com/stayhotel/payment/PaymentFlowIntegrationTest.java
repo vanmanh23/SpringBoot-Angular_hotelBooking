@@ -382,6 +382,8 @@ class PaymentFlowIntegrationTest {
             assertThat(call(HttpMethod.POST, "/api/v1/payments/" + id + "/refund", body, admin, null).getStatusCode())
                     .as("second manual refund is a no-op").isEqualTo(HttpStatus.ACCEPTED);
             assertThat(refundRows(id)).isEqualTo(1);
+            assertThat(jdbc.queryForList("SELECT details->>'newRefund' FROM audit_logs WHERE target_id = ? AND action = 'PAYMENT_REFUND_REQUESTED' ORDER BY created_at",
+                    String.class, id)).as("BR-32: both manual requests are audited").containsExactly("true", "false");
 
             JsonNode pending = startPaymentFor(UUID.randomUUID());
             assertThat(call(HttpMethod.POST, "/api/v1/payments/" + pending.get("id").asText() + "/refund", body, admin, null)

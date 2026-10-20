@@ -314,6 +314,20 @@ class AuthFlowIntegrationTest {
         }
 
         @Test
+        void adminReadsOneUserOthersCannot() {
+            String email = uniqueEmail();
+            String id = api.field(api.register(email), "id");
+            ResponseEntity<String> res = api.exchange(HttpMethod.GET, "/api/v1/admin/users/" + id, null, adminToken(), null);
+            assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(api.field(res, "email")).isEqualTo(email);
+            assertThat(res.getBody()).doesNotContain("password");
+            assertThat(api.exchange(HttpMethod.GET, "/api/v1/admin/users/" + UUID.randomUUID(), null, adminToken(), null)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(api.exchange(HttpMethod.GET, "/api/v1/admin/users/" + id, null, api.registerAndLogin().accessToken(), null)
+                    .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        }
+
+        @Test
         void adminSearchIsPaginated() {
             String email = uniqueEmail();
             api.register(email);

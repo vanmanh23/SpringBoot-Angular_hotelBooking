@@ -2,3 +2,4 @@ com.stayhotel.common.error.CommonErrorAutoConfiguration
 com.stayhotel.common.security.CommonSecurityAutoConfiguration
 com.stayhotel.common.logging.CorrelationIdAutoConfiguration
 com.stayhotel.common.messaging.MessagingAutoConfiguration
+com.stayhotel.common.audit.AuditAutoConfiguration

@@ -1,5 +1,6 @@
 package com.stayhotel.hotel.hotel;
 
+import com.stayhotel.common.audit.AuditTrail;
 import com.stayhotel.common.error.BusinessException;
 import com.stayhotel.common.error.ErrorCode;
 import com.stayhotel.common.security.CurrentUser;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,16 +30,19 @@ public class HotelManagementService {
     private final HotelAccessPolicy access;
     private final AmenityService amenities;
     private final HotelViewAssembler views;
+    private final AuditTrail audit;
     private final Clock clock;
 
     HotelManagementService(HotelRepository hotels, HotelImageRepository images, HotelManagerRepository managers,
-                           HotelAccessPolicy access, AmenityService amenities, HotelViewAssembler views, Clock clock) {
+                           HotelAccessPolicy access, AmenityService amenities, HotelViewAssembler views, AuditTrail audit,
+                           Clock clock) {
         this.hotels = hotels;
         this.images = images;
         this.managers = managers;
         this.access = access;
         this.amenities = amenities;
         this.views = views;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -74,7 +79,9 @@ public class HotelManagementService {
             }
             throw HotelErrors.invalidTransition(hotel.getStatus(), target);
         }
+        HotelStatus previous = hotel.getStatus();
         hotel.changeStatus(target, clock.instant());
+        audit.record(user.id(), "HOTEL_STATUS_CHANGED", "HOTEL", hotelId, Map.of("from", previous, "to", target));
         return flushedView(hotel);
     }
 
@@ -117,18 +124,20 @@ public class HotelManagementService {
         requireExists(hotelId);
         if (!managers.existsByIdHotelIdAndIdUserId(hotelId, userId)) {
             managers.save(new HotelManager(hotelId, userId, admin.id(), clock.instant()));
+            audit.record(admin.id(), "HOTEL_MANAGER_ASSIGNED", "HOTEL", hotelId, Map.of("userId", userId));
         }
         return managerIds(hotelId);
     }
 
     @Transactional
-    public void unassignManager(UUID hotelId, UUID userId) {
+    public void unassignManager(CurrentUser admin, UUID hotelId, UUID userId) {
         requireExists(hotelId);
         HotelManager.Key key = new HotelManager.Key(hotelId, userId);
         if (!managers.existsById(key)) {
             throw HotelErrors.managerNotFound();
         }
         managers.deleteById(key);
+        audit.record(admin.id(), "HOTEL_MANAGER_UNASSIGNED", "HOTEL", hotelId, Map.of("userId", userId));
     }
 
     /**

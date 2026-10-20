@@ -37,6 +37,10 @@ class HotelManagementIntegrationTest {
     TestRestTemplate http;
     @Autowired
     ObjectMapper objectMapper;
+    @Autowired
+    FakeUserDirectory users;
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     HotelApi api;
 
@@ -118,6 +122,19 @@ class HotelManagementIntegrationTest {
             ResponseEntity<String> res = api.call(PATCH, "/api/v1/hotels/" + id + "/status", Map.of("status", "INACTIVE"), api.admin);
             assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
             assertThat(api.body(res).get("code").asText()).isEqualTo("INVALID_STATUS_TRANSITION");
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_logs WHERE target_id = ?", Integer.class, id))
+                    .as("refused changes are not audited").isZero();
+        }
+
+        @Test
+        void statusChangesAreAudited() {
+            String id = api.createHotel(api.manager, hotelRequest("Audited", uniqueCity()));
+            api.setStatus(api.admin, id, "ACTIVE");
+            api.setStatus(api.manager, id, "INACTIVE");
+            assertThat(jdbc.queryForList("""
+                    SELECT actor_id || ':' || (details->>'from') || '->' || (details->>'to') FROM audit_logs
+                    WHERE target_id = ? AND action = 'HOTEL_STATUS_CHANGED' ORDER BY created_at""", String.class, id))
+                    .containsExactly(api.adminId + ":DRAFT->ACTIVE", api.managerId + ":ACTIVE->INACTIVE");
         }
     }
 
@@ -161,6 +178,7 @@ class HotelManagementIntegrationTest {
 
         @Test
         void adminAssignmentGrantsAndRevokesAccess() {
+            users.manager(api.otherManagerId);
             String id = api.createHotel(api.manager, hotelRequest("Shared", uniqueCity()));
             String managers = "/api/v1/hotels/" + id + "/managers";
 
@@ -173,12 +191,21 @@ class HotelManagementIntegrationTest {
             assertThat(api.call(DELETE, managers + "/" + api.otherManagerId, null, api.admin).getStatusCode())
                     .isEqualTo(HttpStatus.NO_CONTENT);
             assertThat(api.call(GET, "/api/v1/manage/hotels/" + id, null, api.otherManager).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+            // BR-32: both changes are audited with the acting admin
+            assertThat(jdbc.queryForList("SELECT action FROM audit_logs WHERE target_id = ? AND actor_id = ? ORDER BY created_at",
+                    String.class, id, api.adminId)).containsExactly("HOTEL_MANAGER_ASSIGNED", "HOTEL_MANAGER_UNASSIGNED");
         }
 
         @Test
-        void assignmentWithoutManagerRoleGrantsNothing() {
+        void onlyActiveHotelManagersCanBeAssigned() {
+            users.notManager(api.customerId);
             String id = api.createHotel(api.manager, hotelRequest("Role check", uniqueCity()));
-            api.call(POST, "/api/v1/hotels/" + id + "/managers", Map.of("userId", api.customerId), api.admin);
+            ResponseEntity<String> refused = api.call(POST, "/api/v1/hotels/" + id + "/managers", Map.of("userId", api.customerId), api.admin);
+            assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(api.body(refused).get("code").asText()).isEqualTo("USER_NOT_HOTEL_MANAGER");
+            assertThat(api.call(POST, "/api/v1/hotels/" + id + "/managers", Map.of("userId", UUID.randomUUID()), api.admin)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
             assertThat(api.call(GET, "/api/v1/manage/hotels/" + id, null, api.customer).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         }

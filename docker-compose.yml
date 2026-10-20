@@ -105,6 +105,7 @@ services:
       DB_NAME: hotel_db
       DB_USERNAME: hotel_user
       DB_PASSWORD: ${HOTEL_DB_PASSWORD:?}
+      AUTH_SERVICE_URL: http://auth-service:8081   # manager role check with the admin's token (R-M5-1)
 
   booking-service:
     <<: *service-defaults

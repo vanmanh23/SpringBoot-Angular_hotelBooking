@@ -57,7 +57,9 @@ class PaymentController {
 
     @PostMapping("/{id}/refund")
     @PreAuthorize("hasRole('ADMIN')")
-    ResponseEntity<PaymentDtos.PaymentResponse> refund(@PathVariable UUID id, @Valid @RequestBody PaymentDtos.RefundRequest request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.adminRefund(id, request.reason()));
+    ResponseEntity<PaymentDtos.PaymentResponse> refund(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                                      @Valid @RequestBody PaymentDtos.RefundRequest request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(service.adminRefund(CurrentUser.from(jwt).id(), id, request.reason()));
     }
 }

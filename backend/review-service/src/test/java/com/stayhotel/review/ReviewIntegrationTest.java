@@ -190,6 +190,8 @@ class ReviewIntegrationTest {
 
         assertThat(call(HttpMethod.DELETE, "/api/v1/reviews/" + id, admin, "ADMIN", null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(jdbc.queryForList("SELECT action FROM audit_logs WHERE target_id = ? AND actor_id = ? ORDER BY created_at",
+                String.class, id, admin)).as("BR-32").containsExactly("REVIEW_VISIBILITY_CHANGED", "REVIEW_DELETED");
         assertThat(ratingEvents()).hasSize(4);
     }
 
