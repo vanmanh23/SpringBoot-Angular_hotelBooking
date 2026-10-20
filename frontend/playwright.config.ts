@@ -21,5 +21,12 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
+    // Cross-browser (M7): run with --project=firefox / --project=webkit, or E2E_ALL_BROWSERS=1 for everything.
+    ...(process.env['E2E_ALL_BROWSERS']
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        ]
+      : []),
   ],
 });
