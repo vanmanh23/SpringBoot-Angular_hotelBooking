@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { User } from '../../core/auth/auth.models';
 import { emptyPage, signInAs } from '../../testing/sign-in';
-import { AdminPayments } from './admin-transactions';
+import { AdminBookings, AdminPayments } from './admin-transactions';
 import { AdminUsers } from './admin-users';
 
 const user = (id: string, over: Partial<User> = {}): User => ({
@@ -75,6 +75,23 @@ describe('admin area', () => {
     fixture.detectChanges();
     expect(el.textContent).toContain('at least one role');
     backend.expectNone('/api/v1/admin/users/u2/roles');
+  });
+
+  it('searches bookings by code and status', () => {
+    const fixture = TestBed.createComponent(AdminBookings);
+    fixture.detectChanges();
+    backend.expectOne('/api/v1/admin/bookings?page=0&size=20').flush(emptyPage);
+    const el = fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLInputElement>('#ab-code')!.value = ' sh-abc123 ';
+    el.querySelector<HTMLSelectElement>('#ab-status')!.value = 'CONFIRMED';
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Search'))!.click();
+    backend.expectOne('/api/v1/admin/bookings?page=0&size=20&code=sh-abc123&status=CONFIRMED').flush({ ...emptyPage,
+      content: [{ id: 'b1', bookingCode: 'SH-ABC123', status: 'CONFIRMED', hotelId: 'h', hotelName: 'Sea View', checkInDate: '2030-01-01',
+        checkOutDate: '2030-01-02', nights: 1, adults: 2, children: 0, contactName: 'Lan', totalAmount: 1_000_000, currency: 'VND',
+        refundStatus: 'NONE', createdAt: '' }], totalElements: 1, totalPages: 1 });
+    fixture.detectChanges();
+    expect(el.textContent).toContain('SH-ABC123');
+    expect(el.textContent).toContain('Sea View');
   });
 
   it('filters the payment queue by "needs review" and requests a refund for a captured payment', () => {
