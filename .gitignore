@@ -21,3 +21,6 @@ Thumbs.db
 
 # Demo data SQL (generated, dates relative to the run day)
 scripts/demo-data/sql/
+
+# QA scripts (security check, k6 load test) kept local only
+qa/
