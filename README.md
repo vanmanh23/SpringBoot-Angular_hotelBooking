@@ -56,6 +56,14 @@ Demo data (optional; ADMIN_EMAIL/ADMIN_PASSWORD must have been set before the fi
 python scripts/seed-demo-data.py --admin-email <ADMIN_EMAIL> --admin-password <ADMIN_PASSWORD>
 ```
 
+Larger demo data set written straight into the databases (32 hotels, 46 users, ~260 bookings with payments, refunds,
+reviews and notifications; every demo account uses the password `DemoStay2026`, e.g. `admin.demo@stayhotel.local`).
+Needs `pip install bcrypt`; dates are relative to the run day and re-running replaces the same rows:
+```bash
+python scripts/demo-data/generate.py           # only writes scripts/demo-data/sql/*.sql
+python scripts/demo-data/generate.py --apply   # ...and loads them into the compose Postgres
+```
+
 ## Develop locally
 ```bash
 # Infrastructure only
